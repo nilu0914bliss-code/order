@@ -2,8 +2,17 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>叫貨系統（連動打卡）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>健人餐廚 叫貨系統</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="叫貨">
+<meta name="application-name" content="叫貨">
+<meta name="theme-color" content="#F4EFE6">
 <style>
   :root{
     --green:#1B6B47; --green-d:#14563a; --green-soft:#E7F0EA; --green-tint:#F1F6F2;
@@ -112,6 +121,9 @@
   .storeopt.sel .tick{opacity:1;}
   .storeopt .last{display:block;font-size:11.5px;color:var(--green);font-weight:600;margin-top:2px;}
   .gerr{background:#FDECEA;color:#B3261E;border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px;line-height:1.6;}
+  @supports(padding:env(safe-area-inset-top)){
+    .topbar{height:auto;min-height:66px;padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:9px;}
+    .app,.gate{padding-bottom:env(safe-area-inset-bottom);}}
   .mlab{display:none;}
   .modal.wide{max-width:760px;}
   .modal h3{margin:0 0 18px;font-size:19px;letter-spacing:-.02em;} .modal .fld{margin-bottom:14px;}
