@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>叫貨系統（連動打卡）</title>
+<style>
+  :root{
+    --green:#1B6B47; --green-d:#14563a; --green-soft:#E7F0EA; --green-tint:#F1F6F2;
+    --amber:#EE9528; --amber-soft:#FDF0DC; --grad:linear-gradient(135deg,#F9C471 0%,#EE9528 100%);
+    --bg:#F4EFE6; --card:#ffffff; --ink:#2A2823; --muted:#8E8981; --line:#EFEAE1;
+    --red:#C9503C; --red-soft:#FBEDEA; --warn:#D98A20; --warn-soft:#FDF2E0;
+    --shadow:0 2px 16px rgba(120,95,60,.07); --shadow-lg:0 10px 40px rgba(120,95,60,.14);
+    --r:20px; --r-sm:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;letter-spacing:.01em;}
+  .app{display:block;min-height:100vh;}
+  /* ---- sidebar ---- */
+  aside{width:246px;background:#FFFDFA;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;
+    overflow-y:auto;z-index:60;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:var(--shadow-lg);}
+  aside.open{transform:translateX(0);}
+  .backdrop{position:fixed;inset:0;background:rgba(42,40,35,.28);backdrop-filter:blur(3px);z-index:55;opacity:0;visibility:hidden;transition:opacity .25s;}
+  .backdrop.show{opacity:1;visibility:visible;}
+  .hamb{font-size:19px;cursor:pointer;background:none;border:none;padding:8px 10px;border-radius:12px;color:var(--ink);transition:.15s;}
+  .hamb:hover{background:rgba(27,107,71,.07);}
+  .brand{display:flex;align-items:center;gap:10px;padding:20px 20px 14px;font-weight:800;font-size:19px;letter-spacing:-.02em;}
+  .brand .mark{width:30px;height:30px;border-radius:10px;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0;}
+  .brand>span:first-child{display:flex;align-items:center;gap:10px;}
+  .acct{display:flex;align-items:center;gap:11px;margin:0 14px 14px;padding:12px 14px;background:var(--green-tint);border-radius:var(--r-sm);}
+  .acct .av{width:34px;height:34px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .acct small{color:var(--muted);font-size:11px;display:block;} .acct b{font-size:14px;}
+  .navgrp{font-size:11px;color:var(--muted);padding:14px 22px 6px;font-weight:700;letter-spacing:.06em;}
+  .navitem{display:block;margin:2px 12px;padding:11px 16px;color:var(--ink);cursor:pointer;font-size:14.5px;border:none;background:none;
+    width:calc(100% - 24px);text-align:left;border-radius:12px;transition:.15s;}
+  .navitem:hover{background:var(--green-tint);}
+  .navitem.active{background:var(--green);color:#fff;font-weight:600;box-shadow:0 3px 12px rgba(27,107,71,.26);}
+  main{width:100%;min-width:0;}
+  /* ---- topbar ---- */
+  .topbar{height:66px;background:rgba(244,239,230,.85);backdrop-filter:blur(12px);display:flex;align-items:center;padding:0 26px;gap:14px;position:sticky;top:0;z-index:10;}
+  .topbar .sp{flex:1;}
+  .storeSwitch{display:flex;align-items:center;gap:4px;font-size:13.5px;font-weight:600;background:#fff;padding:7px 10px 7px 14px;border-radius:999px;box-shadow:var(--shadow);}
+  .storeSwitch select{border:none;background:transparent;font-weight:700;color:var(--green);padding:2px 4px;width:auto;cursor:pointer;box-shadow:none;}
+  .icobtn{position:relative;background:#fff;border:none;font-size:17px;cursor:pointer;color:var(--ink);padding:9px 11px;border-radius:999px;box-shadow:var(--shadow);transition:.15s;}
+  .icobtn:hover{transform:translateY(-1px);}
+  .badge{position:absolute;top:-2px;right:-2px;background:var(--red);color:#fff;font-size:10px;min-width:17px;height:17px;line-height:17px;border-radius:10px;padding:0 4px;font-weight:700;}
+  .content{padding:14px 26px 70px;max-width:1180px;}
+  .crumb{color:var(--muted);font-size:12.5px;margin-bottom:3px;}
+  h1{font-size:27px;margin:0 0 14px;letter-spacing:-.03em;font-weight:800;}
+  /* ---- cards ---- */
+  .card{background:var(--card);border:none;border-radius:var(--r);padding:22px;margin-bottom:16px;box-shadow:var(--shadow);}
+  .filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:14px;align-items:end;}
+  .field label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;}
+  input,select{font-family:inherit;font-size:14px;padding:11px 14px;border:1.5px solid transparent;border-radius:12px;width:100%;background:#FAF7F2;color:var(--ink);transition:.15s;}
+  input:focus,select:focus{outline:none;border-color:var(--green);background:#fff;}
+  input::placeholder{color:#B8B2A8;}
+  /* ---- buttons ---- */
+  .btn{background:var(--green);color:#fff;border:none;padding:11px 22px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;
+    transition:.18s;box-shadow:0 3px 12px rgba(27,107,71,.24);}
+  .btn:hover{background:var(--green-d);transform:translateY(-1px);box-shadow:0 5px 16px rgba(27,107,71,.3);}
+  .btn.line{background:#fff;color:var(--muted);box-shadow:var(--shadow);} .btn.line:hover{background:#fff;color:var(--ink);}
+  .btn.mini{padding:7px 15px;font-size:12.5px;}
+  .btn.green{background:var(--green);}
+  .btn.grey{background:#F2EEE7;color:var(--ink);box-shadow:none;} .btn.grey:hover{background:#E9E4DB;}
+  .btn.amber{background:var(--grad);box-shadow:0 3px 12px rgba(238,149,40,.3);}
+  /* ---- table ---- */
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:13px 18px;border-bottom:1px solid var(--line);letter-spacing:.03em;}
+  td{padding:14px 18px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr{transition:.12s;} tbody tr:hover{background:#FCFAF6;}
+  tr.low td{background:var(--amber-soft);}
+  .thumb{width:44px;height:44px;border-radius:13px;background:var(--green-tint);display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
+  .pname{display:flex;align-items:center;gap:13px;}
+  .spec{font-size:11px;background:#F2EEE7;color:var(--muted);padding:3px 8px;border-radius:7px;margin-left:3px;}
+  .stepper{display:inline-flex;align-items:center;background:#FAF7F2;border-radius:999px;overflow:hidden;padding:2px;}
+  .stepper button{width:28px;height:28px;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--ink);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+  .stepper button:hover{background:var(--green);color:#fff;}
+  .stepper input{width:40px;border:none;background:transparent;text-align:center;border-radius:0;padding:6px 0;font-weight:600;}
+  .stepper input:focus{background:transparent;border-color:transparent;}
+  /* ---- pills ---- */
+  .pill{font-size:11px;padding:4px 11px;border-radius:999px;font-weight:700;white-space:nowrap;letter-spacing:.02em;}
+  .pill.wait{background:var(--warn-soft);color:var(--warn);} .pill.done{background:var(--green-soft);color:var(--green);}
+  .pill.low{background:var(--red);color:#fff;}
+  .pill.void{background:#EFEAE1;color:#8E8981;}
+  .voided{opacity:.55;}
+  .pill.m{background:var(--green-soft);color:var(--green);} .pill.c{background:var(--amber-soft);color:var(--amber);}
+  .muted{color:var(--muted);} .empty{text-align:center;color:var(--muted);padding:48px;} .right{text-align:right;}.center{text-align:center;}
+  .sum{display:flex;justify-content:flex-end;align-items:center;gap:22px;margin-top:10px;} .sum b{font-size:20px;color:var(--green);}
+  /* ---- toast & modal ---- */
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:13px 26px;border-radius:999px;z-index:90;
+    opacity:0;transition:.3s;pointer-events:none;box-shadow:var(--shadow-lg);font-weight:500;}
+  .toast.show{opacity:1;}
+  .modalbg{position:fixed;inset:0;background:rgba(42,40,35,.32);backdrop-filter:blur(4px);z-index:70;display:none;align-items:center;justify-content:center;padding:16px;}
+  .modalbg.show{display:flex;}
+  .modal{background:#fff;border-radius:24px;padding:26px;max-width:450px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);}
+  .basisopt{flex:1;display:flex;align-items:center;gap:7px;padding:10px 13px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;font-size:13.5px;font-weight:600;background:#fff;}
+  .basisopt:has(input:checked){border-color:var(--green);background:var(--green-tint);color:var(--green);}
+  .basisopt input{width:auto;margin:0;accent-color:var(--green);}
+  .gate{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .gate.hide{display:none;}
+  .gatebox{background:#fff;border-radius:24px;padding:30px 28px;max-width:430px;width:100%;box-shadow:var(--shadow-lg);max-height:92vh;overflow-y:auto;}
+  .gatebox h2{margin:0 0 6px;font-size:23px;letter-spacing:-.02em;}
+  .gspin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--green);border-radius:50%;margin:10px auto;animation:gsp .8s linear infinite;}
+  @keyframes gsp{to{transform:rotate(360deg)}}
+  .storeopt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:15px 17px;border:2px solid var(--line);border-radius:16px;
+    background:#fff;cursor:pointer;font-size:15.5px;font-weight:600;color:var(--ink);margin-bottom:9px;transition:.15s;}
+  .storeopt:hover{border-color:var(--green);}
+  .storeopt.sel{border-color:var(--green);background:var(--green-tint);}
+  .storeopt .tick{margin-left:auto;color:var(--green);font-size:19px;opacity:0;}
+  .storeopt.sel .tick{opacity:1;}
+  .storeopt .last{display:block;font-size:11.5px;color:var(--green);font-weight:600;margin-top:2px;}
+  .gerr{background:#FDECEA;color:#B3261E;border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px;line-height:1.6;}
+  .mlab{display:none;}
+  .modal.wide{max-width:760px;}
+  .modal h3{margin:0 0 18px;font-size:19px;letter-spacing:-.02em;} .modal .fld{margin-bottom:14px;}
+  .modal label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;}
+  .modact{display:flex;gap:9px;justify-content:flex-end;margin-top:8px;} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  .ordhead{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;background:#FCFAF6;}
+  /* ---- KPI ---- */
+  .kpis{display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+  .kpi{background:var(--card);border:none;border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);}
+  .kpi.hero{color:#fff;background:var(--grad);}
+  .kpi.hero.good{background:linear-gradient(135deg,#35A876 0%,#1B6B47 100%);}
+  .kpi.hero.warn{background:linear-gradient(135deg,#F9C471 0%,#EE9528 100%);}
+  .kpi.hero.bad{background:linear-gradient(135deg,#E4816E 0%,#C9503C 100%);}
+  .kpi.hero .lab,.kpi.hero .sub{color:rgba(255,255,255,.88);}
+  .kpi.hero .big{color:#fff !important;}
+  .kpi.hero .status{background:rgba(255,255,255,.22) !important;color:#fff !important;}
+  .kpi.hero .gauge{background:rgba(255,255,255,.28);}
+  .kpi.hero .gauge>i{background:#fff !important;}
+  .kpi.hero .sub span,.kpi.hero .sub b{color:rgba(255,255,255,.95) !important;}
+  .kpi .lab{color:var(--muted);font-size:12.5px;margin-bottom:9px;font-weight:500;}
+  .kpi .big{font-size:34px;font-weight:800;letter-spacing:-.04em;line-height:1;}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:9px;}
+  .status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;margin-top:11px;}
+  .status.good{background:var(--green-soft);color:var(--green);} .status.warn{background:var(--warn-soft);color:var(--warn);} .status.bad{background:var(--red-soft);color:var(--red);}
+  .gauge{height:8px;background:#F0EBE2;border-radius:999px;overflow:hidden;margin-top:14px;} .gauge>i{display:block;height:100%;border-radius:999px;transition:width .5s;}
+  /* ---- misc ---- */
+  .conn{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;padding:7px 15px;border-radius:999px;margin-bottom:16px;}
+  .conn.ok{background:var(--green-soft);color:var(--green);} .conn.load{background:#F2EEE7;color:var(--muted);} .conn.fail{background:var(--warn-soft);color:var(--warn);}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;}
+  .star{font-size:20px;cursor:pointer;color:var(--amber);user-select:none;transition:.15s;line-height:1;background:none;border:none;padding:4px;}
+  .star.off{color:#D9D3C8;} .star:hover{transform:scale(1.18);}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{padding:8px 15px;border-radius:999px;background:#FAF7F2;font-size:13.5px;font-weight:600;cursor:pointer;border:none;color:var(--ink);transition:.15s;}
+  .chip:hover{background:#F0EBE2;} .chip.on{background:var(--green);color:#fff;box-shadow:0 3px 12px rgba(27,107,71,.24);}
+  .chip small{opacity:.7;font-weight:400;margin-left:4px;}
+  .barrow{display:flex;align-items:center;gap:12px;margin:9px 0;}
+  .barrow .nm{width:132px;font-size:13px;flex-shrink:0;}
+  .barrow .track{flex:1;height:12px;background:#F4F0E9;border-radius:999px;overflow:hidden;}
+  .barrow .fill{height:100%;background:var(--green);border-radius:999px;transition:width .5s;}
+  .barrow .pc{width:104px;text-align:right;font-size:12.5px;flex-shrink:0;}
+
+  /* ===== 手機：表格改成卡片式堆疊，避免欄位擠成一行一個字 ===== */
+  @media(max-width:760px){
+    .content{padding:8px 12px 60px;}
+    h1{font-size:21px;}
+    .card{border-radius:16px;padding:16px;}
+    table:not(.keepcols) thead{display:none;}
+    table:not(.keepcols),table:not(.keepcols) tbody,table:not(.keepcols) tr,table:not(.keepcols) td{display:block;width:100%;}
+    table:not(.keepcols) tr{padding:13px 15px;border-bottom:1px solid var(--line);}
+    table:not(.keepcols) tbody tr:last-child{border-bottom:none;}
+    table:not(.keepcols) td{border:none !important;padding:3px 0 !important;text-align:left !important;white-space:normal;}
+    table:not(.keepcols) td:first-child{font-weight:600;font-size:14.5px;}
+    table:not(.keepcols) tfoot tr{background:#FCFAF6;}
+    .mlab{display:inline;color:var(--muted);font-size:12.5px;font-weight:600;margin-right:6px;}
+    .pname{gap:10px;} .thumb{width:38px;height:38px;font-size:16px;}
+    /* 手機：加大按鍵，廚房濕手也好按 */
+    .stepper{margin-top:8px;padding:3px;}
+    .stepper button{width:40px;height:40px;font-size:19px;}
+    .stepper input{width:52px;font-size:16px;padding:9px 0;}
+    .star{font-size:26px;padding:9px 12px;}
+    .btn.mini{padding:11px 18px;font-size:14px;}
+    .icobtn,.hamb{min-height:44px;}
+    /* 退貨／折讓單的品項表在手機改成堆疊，不用左右滑 */
+    .modal table.keepcols{min-width:0 !important;width:100% !important;}
+    .modal table.keepcols thead{display:none;}
+    .modal table.keepcols,.modal table.keepcols tbody,.modal table.keepcols tr,.modal table.keepcols td{display:block;width:100%;}
+    .modal table.keepcols tr{padding:12px 13px;border-bottom:1px solid var(--line);}
+    .modal table.keepcols tbody tr:last-child{border-bottom:none;}
+    .modal table.keepcols td{border:none !important;padding:4px 0 !important;display:flex;align-items:center;gap:9px;}
+    .modal table.keepcols td::before{content:attr(data-l);color:var(--muted);font-size:12.5px;font-weight:600;flex:0 0 62px;}
+    .modal table.keepcols td:first-child{display:block;}
+    .modal table.keepcols td:first-child::before{display:block;margin-bottom:5px;}
+    .modal table.keepcols td input,.modal table.keepcols td select{width:100% !important;flex:1;text-align:left !important;}
+    .modal table.keepcols td:last-child{width:100% !important;justify-content:flex-end;}
+    .modal table.keepcols td:last-child::before{content:'';flex:0;}
+    .btn.mini{padding:9px 16px;font-size:13.5px;}
+    .ordhead{flex-wrap:wrap;gap:8px;padding:14px 16px;}
+    .kpi .big{font-size:28px;}
+    .barrow{flex-wrap:wrap;gap:6px 10px;}
+    .barrow .nm{width:auto;flex:1 1 100%;font-weight:600;}
+    .barrow .track{flex:1 1 auto;min-width:120px;}
+    .barrow .pc{width:auto;}
+    .filters{gap:10px;}
+    .modal{padding:20px;border-radius:20px;}
+    .chips{gap:6px;} .chip{padding:7px 13px;font-size:13px;}
+    .storeSwitch{font-size:12.5px;padding:6px 8px 6px 11px;max-width:47vw;}
+    .storeSwitch select{max-width:33vw;}
+    .topbar{padding:0 14px;gap:8px;}
+  }
+  @media(max-width:820px){.filters,.grid3,.kpis,.grid2{grid-template-columns:1fr;} .content{padding:10px 16px 60px;} h1{font-size:23px;}}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <div class="gatebox">
+    <div id="gateBody">
+      <div class="gspin"></div>
+      <div class="muted" style="margin-top:16px;text-align:center">連線中…</div>
+    </div>
+  </div>
+</div>
+<div class="app">
+  <div class="backdrop" id="backdrop" onclick="closeMenu()"></div>
+  <aside id="sidebar">
+    <div class="brand" style="justify-content:space-between"><span><span class="mark">🛒</span> 叫貨系統</span><span style="cursor:pointer;font-weight:400;font-size:22px;color:#999" onclick="closeMenu()">×</span></div>
+    <div class="acct" id="acctBox"><span class="av">📍</span><div style="min-width:0"><small>目前門市</small><b id="acctStore">—</b></div></div>
+    <div style="display:flex;gap:7px;padding:0 18px 12px">
+      <button class="btn line mini" style="flex:1" onclick="switchStore()">換門市</button>
+      <button class="btn grey mini" style="flex:1" onclick="doLogout()">登出</button></div>
+    <div class="navgrp">🛒 日常叫貨</div>
+    <button class="navitem" data-page="fav">⭐ 我的最愛</button>
+    <button class="navitem" data-page="products">選貨叫貨</button>
+    <button class="navitem" data-page="weekly">本週菜價</button>
+    <button class="navitem" data-page="orders">已送出的訂單</button>
+    <button class="navitem" data-page="receiving">收貨確認</button>
+    <button class="navitem" data-page="returns">退貨／折讓</button>
+    <div class="navgrp">📊 營運與結算</div>
+    <button class="navitem active" data-page="dashboard">營運儀表板</button>
+    <button class="navitem" data-page="payment">貨款結算</button>
+    <div class="navgrp">⚙️ 基本資料建置</div>
+    <button class="navitem" data-page="prodadmin">商品與價格</button>
+    <button class="navitem" data-page="suppliers">廠商管理</button>
+    <div style="margin-top:auto;padding:14px 18px;font-size:11.5px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line)">
+      以上皆為<b>店家端</b>功能。<br>廠商端（調價通知）將於多人版提供。<div style="margin-top:10px;display:flex;flex-direction:column;gap:7px">
+        <button class="btn mini" onclick="exportBackup()">💾 匯出備份檔</button>
+        <label class="btn grey mini" style="cursor:pointer;text-align:center">📂 還原備份
+          <input type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)"></label>
+        <button class="btn grey mini" onclick="loadDemo()">🎬 載入示範資料</button>
+        <button class="btn grey mini" onclick="resetAllData()">重設（清空所有資料）</button></div></div>
+  </aside>
+  <main>
+    <div class="topbar"><button class="hamb" onclick="toggleMenu()">☰</button>
+      <div class="storeSwitch">📍 <select id="gStore"></select></div><span class="sp"></span>
+      <button class="icobtn" title="購物車 · 點我購物車" data-page="ordering">🛒<span class="badge" id="cartBadge">0</span></button>
+      <button class="icobtn">👤</button>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<div class="modalbg" id="modalbg"><div class="modal" id="modalbox"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const store=(()=>{try{const k='__t';localStorage.setItem(k,'1');localStorage.removeItem(k);return{get:k=>localStorage.getItem(k),set:(k,v)=>localStorage.setItem(k,v)};}catch(e){const m={};return{get:k=>m[k]??null,set:(k,v)=>m[k]=v};}})();
+const TARGET=45;
+// 真實廠商（來自你們物料占比表）— 可在「廠商管理」新增/編輯
+function defaultSuppliers(){return [{"name": "久沃食品有限公司", "type": "月結", "tax": "含稅"}, {"name": "彥頡食品行", "type": "月結", "tax": "含稅"}, {"name": "友利／友鮮國際有限公司", "type": "月結", "tax": "含稅"}, {"name": "台灣無塑股份有限公司(健人餐廚)", "type": "月結", "tax": "含稅"}, {"name": "鼎生食品有限公司", "type": "月結", "tax": "含稅"}, {"name": "萬福國際企業有限公司", "type": "月結", "tax": "含稅"}, {"name": "阿寶水產／羿真寶水產有限公司", "type": "現金", "tax": "含稅"}, {"name": "萬鈞行", "type": "月結", "tax": "含稅"}, {"name": "昇大食品行", "type": "月結", "tax": "含稅"}, {"name": "野人舒食有限公司", "type": "月結", "tax": "含稅"}, {"name": "晨竣有限公司", "type": "月結", "tax": "含稅"}, {"name": "聯漁股份有限公司(健人餐廚)", "type": "月結", "tax": "含稅"}, {"name": "沅順食品有限公司(健人餐廚)", "type": "月結", "tax": "含稅"}, {"name": "一豆實業有限公司(健人餐廚)", "type": "月結", "tax": "含稅"}, {"name": "崇贏實業股份有限公司", "type": "月結", "tax": "含稅"}, {"name": "開元食品工業股份有限公司(健人餐廚)", "type": "月結", "tax": "含稅"}, {"name": "海自慢食品股份有限公司", "type": "月結", "tax": "含稅"}, {"name": "呈冠溏心蛋／糧堂行", "type": "月結", "tax": "含稅"}, {"name": "職人包裝有限公司", "type": "月結", "tax": "含稅"}, {"name": "興裕農產行", "type": "月結", "pricing": "週報", "tax": "含稅"}, {"name": "源發禾鮮", "type": "月結", "pricing": "隨貨", "tax": "含稅"}, {"name": "美食家", "type": "月結", "tax": "含稅"}, {"name": "大富餐盒", "type": "月結", "tax": "含稅"}, {"name": "立群", "type": "月結", "tax": "含稅"}, {"name": "龍昇海鮮", "type": "月結", "tax": "含稅"}, {"name": "蛋液", "type": "現金", "tax": "含稅"}, {"name": "旺旺來", "type": "現金", "tax": "含稅"}, {"name": "光泉", "type": "現金", "tax": "含稅"}, {"name": "他店調貨", "type": "現金", "tax": "含稅"}, {"name": "其他食材/包材", "type": "現金", "tax": "含稅"}];}
+let suppliers=load('p_suppliers')||defaultSuppliers();
+let weekly=load('p_weekly')||{};   // `${供應商}|${週一...實為週二起}|${商品id}` = 單價
+function supType(name){const s=suppliers.find(x=>x.name===name);return s?s.type:'現金';}
+function supPricing(name){const s=suppliers.find(x=>x.name===name);return (s&&s.pricing)||'固定';}
+function isoOf(d){return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
+function weekStartTue(iso){const d=new Date(iso+'T00:00:00');const diff=(d.getDay()-3+7)%7;d.setDate(d.getDate()-diff);return isoOf(d);}
+function weekEndOf(ws){const d=new Date(ws+'T00:00:00');d.setDate(d.getDate()+6);return isoOf(d);}
+function weeklyPrice(sup,ws,pid){const v=weekly[`${sup}|${ws}|${pid}`];return (v===undefined||v===null||v==='')?null:v;}
+// 某商品在某日的單價；null = 尚未定價（時價待填）
+function priceFor(p,date){const m=supPricing(p.supplier);
+  if(m==='隨貨')return null;
+  if(m==='週報')return weeklyPrice(p.supplier,weekStartTue(date||isoAt(0)),p.id);
+  return p.price;}
+function orderTBD(o){return o.items.some(i=>i.price===null||i.price===undefined||i.price==='');}
+
+let STORES=[{id:'jr',name:'健人餐廚巨城店'}];
+let fb={status:'loading',revenue:null};
+let selStore=load('p_selstore')||'';
+let selMonth=load('p_selmonth')||curMonth();
+let products=load('p_products')||seedProducts();
+let orders  =load('p_orders')  ||seedOrders();
+/* ---- 資料版本檢查：內建商品/廠商更新時自動換新（不影響已下的訂單與貨款調整） ---- */
+const DATA_VER='2026-08-15-coco463-tax';
+if(load('p_dataver')!==DATA_VER){
+  products=seedProducts();suppliers=defaultSuppliers();weekly={};
+  store.set('p_dataver',JSON.stringify(DATA_VER));
+  store.set('p_products',JSON.stringify(products));store.set('p_suppliers',JSON.stringify(suppliers));
+}
+function seedWeeklyNow(){const __w=weekStartTue(isoAt(0));
+  products.filter(p=>supPricing(p.supplier)==='週報'&&p.price>0).forEach(p=>{weekly[p.supplier+'|'+__w+'|'+p.id]=p.price;});}
+if(!Object.keys(weekly).length)seedWeeklyNow();
+
+function loadDemo(){
+  if(!confirm('載入示範資料？\n\n會產生一批「假的」訂單、營業額與最愛，讓你先看整套效果。\n之後可用下方「重設為最新內建資料」全部清掉。'))return;
+  const cur=curMonth(),pm=prevMonth(cur);
+  // 營業額：連得到打卡系統就用真實的，連不到才灌假的
+  if(fb.status!=='ok'){
+    manualRev[`${selStore}|${cur}`]=1330000;
+    manualRev[`${selStore}|${pm}`]=2790000;
+    store.set('p_manualrev',JSON.stringify(manualRev));
+  }
+  const plan=[['鼎生食品有限公司',5],['興裕農產行',6],['昇大食品行',3],['萬鈞行',3],
+              ['久沃食品有限公司',3],['職人包裝有限公司',3],['海自慢食品股份有限公司',2]];
+  const offsets=[-72,-68,-64,-60,-56,-52,-48,-44,-40,-36,-32,-28,-24,-20,-16,-12,-9,-6,-4,-2,-1,0];
+  const made=[];
+  offsets.forEach((off,i)=>{
+    const [sup,n]=plan[i%plan.length];
+    const list=products.filter(p=>p.supplier===sup&&p.price>0);
+    if(!list.length)return;
+    const used=new Set(),items=[];
+    for(let k=0;k<n;k++){
+      const idx=(i*5+k*3)%list.length;let p=list[idx],guard=0;
+      while(used.has(p.id)&&guard++<list.length){p=list[(idx+guard)%list.length];}
+      if(used.has(p.id))break;used.add(p.id);
+      const qty=p.price>1000?1:p.price>300?3:8;
+      items.push({id:p.id,name:p.name,spec:p.spec,unit:p.unit,price:p.price,qty});
+    }
+    if(!items.length)return;
+    made.push({no:'PO'+orderSeq(),store:selStore,storeName:curStoreName(),supplier:sup,
+      date:isoAt(off),deliveryDate:isoAt(off+1),status:off<=-2?'已驗收':'待驗收',items});
+  });
+  // 依營業額把數量等比放大，讓物料佔比落在合理範圍（約 42%）
+  const winM=monthWindow(cur,'月結');
+  const baseMat=made.filter(o=>o.date>=winM.start&&o.date<=winM.end)
+    .reduce((s,o)=>s+o.items.reduce((x,i)=>x+i.price*i.qty,0),0);
+  const revNow=(fb.status==='ok')?monthRevenueM(cur):(manualRev[`${selStore}|${cur}`]||0);
+  if(baseMat>0&&revNow>0){
+    const factor=(revNow*0.42)/baseMat;
+    if(factor>1.2||factor<0.8)
+      made.forEach(o=>o.items.forEach(i=>{i.qty=Math.max(1,Math.round(i.qty*factor));}));
+  }
+  orders=made.concat(orders);
+  // 最愛：前四家各收藏 3 項，並記住常叫數量
+  plan.slice(0,4).forEach(([sup])=>{
+    products.filter(p=>p.supplier===sup&&p.price>0).slice(0,3).forEach(p=>{
+      favs[`${selStore}|${p.id}`]=1;lastQty[`${selStore}|${p.id}`]=p.price>500?2:6;});});
+  persist();toast('示範資料已載入 ✓');go('dashboard');
+}
+
+const BK_KEYS=['p_products','p_suppliers','p_weekly','p_orders','p_matman','p_cart','p_manualrev','p_seq','p_favs','p_lastqty','p_projrev','p_returns','p_rseq','p_selstore','p_selmonth','p_dataver'];
+function exportBackup(){
+  const data={};BK_KEYS.forEach(k=>{const v=store.get(k);if(v!=null)data[k]=v;});
+  const payload={app:'叫貨系統',version:1,exportedAt:new Date().toISOString(),store:curStoreName(),data};
+  const blob=new Blob([JSON.stringify(payload,null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`叫貨系統備份_${isoAt(0)}.json`;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  toast('備份檔已下載 ✓');}
+function importBackup(input){const f=input.files&&input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{let j;try{j=JSON.parse(e.target.result);}catch(err){toast('檔案不是有效的備份檔');return;}
+    if(!j||!j.data){toast('備份檔格式不正確');return;}
+    const when=(j.exportedAt||'').slice(0,10);
+    if(!confirm(`還原備份${when?'（'+when+' 匯出）':''}？\n\n目前裝置上的所有資料會被覆蓋。`)){input.value='';return;}
+    BK_KEYS.forEach(k=>{if(j.data[k]!=null)store.set(k,j.data[k]);});
+    alert('還原完成，將重新載入。');location.reload();};
+  r.readAsText(f);}
+function resetAllData(){
+  if(!confirm('確定要重設嗎？\n商品、廠商、本週菜價會還原成內建的最新版本，\n已下的訂單與貨款調整也會清空。'))return;
+  ['p_products','p_suppliers','p_weekly','p_orders','p_matman','p_cart','p_manualrev','p_seq','p_returns','p_rseq','p_dataver'].forEach(k=>store.set(k,'null'));
+  location.reload();}
+let matManual=load('p_matman')||{};   // key store|supplier|month = 手動補登金額
+let cart    =load('p_cart')   ||{};
+let favs    =load('p_favs')   ||{};   // `${門市}|${商品id}` = 1
+let lastQty =load('p_lastqty')||{};   // `${門市}|${商品id}` = 上次叫的量
+let projRev =load('p_projrev')||{};   // `${門市}|${月份}` = 手動設定的預估整月營收
+let returns =load('p_returns')||[];   // 退貨／折讓單
+let rSeq    =load('p_rseq')   ||1;
+if(!selStore)selStore=STORES[0].id;
+
+function load(k){try{return JSON.parse(store.get(k));}catch(e){return null;}}
+function persistLocal(){[['p_products',products],['p_orders',orders],['p_matman',matManual],['p_cart',cart],['p_selstore',selStore],['p_selmonth',selMonth],['p_suppliers',suppliers],['p_weekly',weekly],['p_favs',favs],['p_lastqty',lastQty],['p_projrev',projRev],['p_returns',returns],['p_rseq',rSeq]].forEach(([k,v])=>store.set(k,JSON.stringify(v)));}
+function persist(){persistLocal();cloudPush();}
+function seedProducts(){return [{"id":"c1","name":"牛油 1公斤/1包(新竹專用)1公斤/1包","spec":"","supplier":"久沃食品有限公司","cat":"肉品類","unit":"包","price":150},{"id":"c2","name":"腿排肉TSXL，18公斤/件","spec":"","supplier":"彥頡食品行","cat":"未分類","unit":"公斤","price":157.5},{"id":"c3","name":"去骨腿肉丁3*3，18公斤/件","spec":"","supplier":"彥頡食品行","cat":"未分類","unit":"公斤","price":147},{"id":"c4","name":"辣檸醬1袋200包","spec":"","supplier":"久沃食品有限公司","cat":"醬料","unit":"袋","price":960},{"id":"c5","name":"口水醬1袋200包","spec":"","supplier":"久沃食品有限公司","cat":"醬料","unit":"袋","price":880},{"id":"c6","name":"口水醬kg裝1公斤/1包","spec":"","supplier":"久沃食品有限公司","cat":"醬料","unit":"公斤","price":160},{"id":"c7","name":"辣檸醬kg裝1公斤/1包","spec":"","supplier":"久沃食品有限公司","cat":"醬料","unit":"公斤","price":175},{"id":"c8","name":"巴拉圭板腱火鍋片3kg/包","spec":"","supplier":"友利／友鮮國際有限公司","cat":"牛肉類","unit":"包","price":1080},{"id":"c9","name":"PP平蓋-Fit 900/1000ml-牛皮捲邊長方-雙格(6/4)-防霧款-健人餐廚600入 / 客製印蓋子","spec":"","supplier":"台灣無塑股份有限公司(健人餐廚)","cat":"包材","unit":"箱","price":1896},{"id":"c10","name":"滷包袋10*12.5/100個","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"捆","price":190},{"id":"c11","name":"工研白醋600cc","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"瓶","price":45},{"id":"c12","name":"紹興酒600cc","spec":"","supplier":"鼎生食品有限公司","cat":"酒類","unit":"瓶","price":190},{"id":"c13","name":"天使麵","spec":"","supplier":"鼎生食品有限公司","cat":"麵食類","unit":"包","price":50},{"id":"c14","name":"阿湯哥單支湯匙50支/包","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"包","price":35},{"id":"c15","name":"健人OPP私版筷3200雙","spec":"","supplier":"萬福國際企業有限公司","cat":"包材","unit":"箱","price":800},{"id":"c16","name":"500方型瓶子100入","spec":"","supplier":"萬福國際企業有限公司","cat":"包材","unit":"箱","price":477},{"id":"c17","name":"小頭黑蓋100入","spec":"","supplier":"萬福國際企業有限公司","cat":"包材","unit":"包","price":110},{"id":"c18","name":"健人AP封口膜350米*6顆","spec":"","supplier":"萬福國際企業有限公司","cat":"包材","unit":"箱","price":3900},{"id":"c19","name":"乾木耳絲600克","spec":"","supplier":"鼎生食品有限公司","cat":"乾貨類","unit":"包","price":155},{"id":"c20","name":"鮭魚丁","spec":"","supplier":"阿寶水產／羿真寶水產有限公司","cat":"未分類","unit":"公斤","price":465},{"id":"c21","name":"100/200鱸魚片","spec":"","supplier":"阿寶水產／羿真寶水產有限公司","cat":"未分類","unit":"公斤","price":275},{"id":"c22","name":"鑽石牌（長）鋁箔紙37.5尺","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"支","price":80},{"id":"c23","name":"紐麥福 全脂保久乳1L","spec":"","supplier":"鼎生食品有限公司","cat":"飲品類","unit":"瓶","price":57},{"id":"c24","name":"泰式奶茶專用奶精粉1000公克/包","spec":"","supplier":"鼎生食品有限公司","cat":"飲品類","unit":"包","price":200},{"id":"c25","name":"泰式風味茶包25g*24入","spec":"","supplier":"鼎生食品有限公司","cat":"飲料相關","unit":"包","price":210},{"id":"c26","name":"秘魯紅黎麥25公斤裝25公斤/袋","spec":"","supplier":"萬鈞行","cat":"五穀根莖類","unit":"袋","price":3750},{"id":"c27","name":"秘魯紅黎麥20公斤裝20公斤／袋","spec":"","supplier":"萬鈞行","cat":"五穀根莖類","unit":"袋","price":3000},{"id":"c28","name":"D4棒腿18kg","spec":"","supplier":"昇大食品行","cat":"肉品類","unit":"公斤","price":125},{"id":"c29","name":"耐油手套","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"盒","price":210},{"id":"c30","name":"白冰糖 米粒5斤 / 包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":140},{"id":"c31","name":"1oz方形連蓋醬料杯一百個/一串","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"串","price":120},{"id":"c32","name":"空白大點心盒100個/串","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"串","price":160},{"id":"c33","name":"Frischli 德國原味優格","spec":"","supplier":"鼎生食品有限公司","cat":"未分類","unit":"罐","price":150},{"id":"c34","name":"福華叻沙醬1kg/包","spec":"","supplier":"鼎生食品有限公司","cat":"醬料","unit":"包","price":290},{"id":"c35","name":"F62醬料蓋配2oz醬料杯125個/串","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"串","price":40},{"id":"c36","name":"2oz 醬料杯125個/串","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"串","price":55},{"id":"c37","name":"紅糖450g/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":25},{"id":"c38","name":"巴蜀麻辣雞胸","spec":"","supplier":"野人舒食有限公司","cat":"雞肉類","unit":"包","price":49},{"id":"c39","name":"夏和廚房水管清潔劑360g","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"罐","price":60},{"id":"c40","name":"紅黎麥1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"五穀根莖類","unit":"包","price":90},{"id":"c41","name":"165平蓋串/50個","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"串","price":45},{"id":"c42","name":"小香菇（鈕扣菇）1斤/包 $550","spec":"","supplier":"鼎生食品有限公司","cat":"蕈菇類","unit":"包","price":550},{"id":"c43","name":"康寶金酸湯醬1kg/包","spec":"","supplier":"鼎生食品有限公司","cat":"醬料","unit":"包","price":200},{"id":"c44","name":"白毛巾20兩/12條/包","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"包","price":280},{"id":"c45","name":"日式里肌豬排151g-170g/40片/箱","spec":"","supplier":"鼎生食品有限公司","cat":"豬肉類","unit":"箱","price":1230},{"id":"c46","name":"TR936光營乳藍1公升/瓶","spec":"","supplier":"晨竣有限公司","cat":"乳製品類","unit":"瓶","price":45},{"id":"c47","name":"王冠牌4*6透明塑膠袋","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":45},{"id":"c48","name":"白毛巾24兩/12條/包","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"包","price":310},{"id":"c49","name":"520蓋50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"串","price":27},{"id":"c50","name":"吉彩捷520杯（空白）50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"串","price":60},{"id":"c51","name":"深海昆布600g","spec":"","supplier":"鼎生食品有限公司","cat":"乾貨類","unit":"包","price":210},{"id":"c52","name":"康寶香菇粉500g","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":195},{"id":"c53","name":"穀威-穀威米醋五公升/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":170},{"id":"c54","name":"康寶香甜沙拉","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":60},{"id":"c55","name":"5.5竹筷小包裝75雙","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"包","price":35},{"id":"c56","name":"億茂黑胡椒大排60片/箱","spec":"","supplier":"鼎生食品有限公司","cat":"肉品類","unit":"箱","price":1170},{"id":"c57","name":"小包裝冷凍秋葵1公斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"蔬菜類","unit":"包","price":100},{"id":"c58","name":"小包裝冷凍青花菜1公斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"蔬菜類","unit":"包","price":56},{"id":"c59","name":"CAS黑胡椒帶骨肉排60片/箱","spec":"","supplier":"鼎生食品有限公司","cat":"肉品類","unit":"箱","price":1500},{"id":"c60","name":"蒲燒鯛魚腹排(110片)110片/箱","spec":"","supplier":"鼎生食品有限公司","cat":"海鮮類","unit":"箱","price":1370},{"id":"c61","name":"日式黃金炸蝦10隻一盒","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"盒","price":115},{"id":"c62","name":"金沙鹹蛋黃風味粉1公斤","spec":"","supplier":"鼎生食品有限公司","cat":"未分類","unit":"包","price":580},{"id":"c63","name":"紫色NBR手套Ｓ","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"盒","price":170},{"id":"c64","name":"紫色NBR手套Ｍ","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"盒","price":170},{"id":"c65","name":"紫色NBR手套Ｌ","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"盒","price":170},{"id":"c66","name":"紫色NBR手套ＸＬ","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"盒","price":170},{"id":"c67","name":"牛蒡絲（駿泰菜根園）3公斤","spec":"","supplier":"鼎生食品有限公司","cat":"加工食品類","unit":"包","price":390},{"id":"c68","name":"黃金泡菜3公斤","spec":"","supplier":"鼎生食品有限公司","cat":"加工食品類","unit":"包","price":450},{"id":"c69","name":"（零）阿比大抽抽取式10包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":90},{"id":"c70","name":"蒜味雞腿排60片","spec":"","supplier":"聯漁股份有限公司(健人餐廚)","cat":"雞肉類","unit":"箱","price":900},{"id":"c71","name":"鐵路里肌肉排50片","spec":"","supplier":"聯漁股份有限公司(健人餐廚)","cat":"豬肉類","unit":"箱","price":1130},{"id":"c72","name":"健人餐廚-輕輕海鹽雞腿排60包/箱","spec":"","supplier":"沅順食品有限公司(健人餐廚)","cat":"未分類","unit":"箱","price":2640},{"id":"c73","name":"樂活海鹽沙拉胸40包/箱","spec":"","supplier":"沅順食品有限公司(健人餐廚)","cat":"未分類","unit":"箱","price":1680},{"id":"c74","name":"去骨腿肉丁(A) 3*3 (3K/P)6包/箱","spec":"","supplier":"沅順食品有限公司(健人餐廚)","cat":"未分類","unit":"箱","price":2790},{"id":"c75","name":"義式香草腿肉(86-100)20包/箱","spec":"","supplier":"沅順食品有限公司(健人餐廚)","cat":"未分類","unit":"箱","price":2000},{"id":"c76","name":"法式香草腿肉(86-100)20包/箱","spec":"","supplier":"沅順食品有限公司(健人餐廚)","cat":"未分類","unit":"箱","price":2000},{"id":"c77","name":"無糖豆漿2500ML/包","spec":"","supplier":"一豆實業有限公司(健人餐廚)","cat":"豆製品類","unit":"包","price":45},{"id":"c78","name":"紫蘇梅汁2000ml/瓶","spec":"","supplier":"崇贏實業股份有限公司","cat":"飲品類","unit":"瓶","price":845},{"id":"c79","name":"戀職人鮮奶936ml","spec":"","supplier":"開元食品工業股份有限公司(健人餐廚)","cat":"飲料相關","unit":"瓶","price":68},{"id":"c80","name":"1000ml-牛皮八角長方紙餐盒-單格-可微波-FSC認證450入/底盒","spec":"","supplier":"台灣無塑股份有限公司(健人餐廚)","cat":"包材","unit":"箱","price":1845},{"id":"c81","name":"PET蓋-Fit 1000/1200ml牛皮八角長方紙餐盒450入/蓋子","spec":"","supplier":"台灣無塑股份有限公司(健人餐廚)","cat":"包材","unit":"箱","price":1060},{"id":"c82","name":"3oz-PP正方連體醬料杯1000入/醬料杯","spec":"","supplier":"台灣無塑股份有限公司(健人餐廚)","cat":"包材","unit":"箱","price":1320},{"id":"c83","name":"900ml-牛皮捲邊長方紙餐盒-雙格(6/4)-可微波-FSC認證(公版)600入/底盒","spec":"","supplier":"台灣無塑股份有限公司(健人餐廚)","cat":"包材","unit":"箱","price":2064},{"id":"c84","name":"PP平蓋-Fit 900/1000ml-牛皮捲邊長方紙餐盒-雙格(6/4)-防霧款(公版)600入/蓋子","spec":"","supplier":"台灣無塑股份有限公司(健人餐廚)","cat":"包材","unit":"箱","price":1366},{"id":"c85","name":"開元焙工房奶油牛角(袋)18個/袋","spec":"","supplier":"開元食品工業股份有限公司(健人餐廚)","cat":"麵包類","unit":"袋","price":200},{"id":"c86","name":"液糖2.6kg","spec":"","supplier":"開元食品工業股份有限公司(健人餐廚)","cat":"飲料相關","unit":"桶","price":160},{"id":"c87","name":"開元蔓越莓青春果醋(調理食醋)1.5L","spec":"","supplier":"開元食品工業股份有限公司(健人餐廚)","cat":"飲料相關","unit":"瓶","price":230},{"id":"c88","name":"開元粉紅蘋果果醋(調理食醋)1.5L","spec":"","supplier":"開元食品工業股份有限公司(健人餐廚)","cat":"飲料相關","unit":"瓶","price":180},{"id":"c89","name":"鮭魚肚105g/包","spec":"","supplier":"海自慢食品股份有限公司","cat":"水產類","unit":"包","price":68.25},{"id":"c90","name":"鮭魚肚(箱)160包/箱","spec":"","supplier":"海自慢食品股份有限公司","cat":"水產類","unit":"箱","price":10920},{"id":"c91","name":"鮭魚菲力105g/包","spec":"","supplier":"海自慢食品股份有限公司","cat":"水產類","unit":"包","price":68.25},{"id":"c92","name":"鮭魚菲力(箱)160包/箱","spec":"","supplier":"海自慢食品股份有限公司","cat":"水產類","unit":"箱","price":10920},{"id":"c93","name":"鯖魚菲力140g/包","spec":"","supplier":"海自慢食品股份有限公司","cat":"未分類","unit":"包","price":35},{"id":"c94","name":"鯖魚菲力(箱)100包/箱","spec":"","supplier":"海自慢食品股份有限公司","cat":"水產類","unit":"箱","price":3500},{"id":"c95","name":"牛頰肉切丁 (PS)(4X4)(3公斤分1包)","spec":"","supplier":"友利／友鮮國際有限公司","cat":"肉品類","unit":"公斤","price":255},{"id":"c96","name":"豬五花火鍋片1.5mm (3KG裝)(TW)","spec":"","supplier":"友利／友鮮國際有限公司","cat":"肉品類","unit":"包","price":720},{"id":"c97","name":"牛五花火鍋片1.5mm (3KG裝)(US)","spec":"","supplier":"友利／友鮮國際有限公司","cat":"肉品類","unit":"包","price":810},{"id":"c98","name":"豬梅花火鍋片(丹)1.5mm (3KG裝)(丹麥)","spec":"","supplier":"友利／友鮮國際有限公司","cat":"肉品類","unit":"包","price":660},{"id":"c99","name":"D版溏心蛋200顆/箱","spec":"","supplier":"呈冠溏心蛋／糧堂行","cat":"冷藏食品類","unit":"箱","price":2300},{"id":"c100","name":"美恆5.5gNBR黑微粒止滑手套(100入)XS","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c101","name":"美恆5.5gNBR黑微粒止滑手套(100入)S","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c102","name":"美恆5.5gNBR黑微粒止滑手套(100入)M","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c103","name":"美恆5.5gNBR黑微粒止滑手套(100入)L","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c104","name":"美恆5.5gNBR黑微粒止滑手套(100入)XL","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c105","name":"美恆5.6gNBR紫色手套(100入)XS","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c106","name":"美恆5.6gNBR紫色手套(100入)S","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c107","name":"美恆5.6gNBR紫色手套(100入)M","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c108","name":"美恆5.6gNBR紫色手套(100入)L","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c109","name":"美恆5.6gNBR紫色手套(100入)XL","spec":"","supplier":"職人包裝有限公司","cat":"未分類","unit":"盒","price":180.95},{"id":"c110","name":"美恆-NBR黑色手套(5g)-XL號100入/盒","spec":"","supplier":"職人包裝有限公司","cat":"耗材","unit":"盒","price":123.81},{"id":"c111","name":"美恆-NBR黑色手套(5g)-L號100入/盒","spec":"","supplier":"職人包裝有限公司","cat":"耗材","unit":"盒","price":123.81},{"id":"c112","name":"美恆-NBR黑色手套(5g)-M號100入/盒","spec":"","supplier":"職人包裝有限公司","cat":"耗材","unit":"盒","price":123.81},{"id":"c113","name":"美恆-NBR黑色手套(5g)-S號100入/盒","spec":"","supplier":"職人包裝有限公司","cat":"耗材","unit":"盒","price":123.81},{"id":"c114","name":"海帶芽1台斤／包","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":200},{"id":"c115","name":"低筋麵粉1台斤／包","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":20},{"id":"c116","name":"黑芝麻（熟）1台斤／包","spec":"","supplier":"萬鈞行","cat":"廚房用品","unit":"台斤","price":130},{"id":"c117","name":"紅K片","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c118","name":"2oz正方形連蓋醬料杯一件20包，50/包","spec":"","supplier":"鼎生食品有限公司","cat":"耗材","unit":"包","price":80},{"id":"c119","name":"酒讚19度純米酒","spec":"","supplier":"鼎生食品有限公司","cat":"飲品類","unit":"瓶","price":25},{"id":"c120","name":"康寶香甜沙拉(整箱出)_客訂要等/不可退換12包/箱","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"箱","price":1300},{"id":"c121","name":"味全香甜沙拉12包/箱","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":55},{"id":"c122","name":"椰漿采400ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":55},{"id":"c123","name":"三紅蜂蜜柚子醬_客訂要等/不可退換2000g/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":310},{"id":"c124","name":"可果美番茄醬柔軟袋(整箱出)5KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":650},{"id":"c125","name":"耐熱捲半斤半斤/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c126","name":"耐熱捲1斤1斤/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c127","name":"耐熱捲2斤2斤/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c128","name":"耐熱捲3斤3斤/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c129","name":"耐熱袋(6兩)6兩/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c130","name":"耐熱袋(半斤)半斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c131","name":"耐熱袋(1斤)1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c132","name":"耐熱袋(2斤)2斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c133","name":"耐熱袋(3斤)3斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c134","name":"耐熱袋(5斤)3斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c135","name":"耐熱袋(10斤)10斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c136","name":"耐熱袋(15斤)15斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c137","name":"耐熱袋(20斤)20斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c138","name":"包大師 透明膠18mm*40Y8捲/封","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"封","price":80},{"id":"c139","name":"白毛巾16兩12條/包","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"包","price":280},{"id":"c140","name":"吉彩捷260湯蓋(空白)50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":20},{"id":"c141","name":"吉彩婕90口徑無圖500c.c冷飲杯 （須耐熱95度）50入/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":55},{"id":"c142","name":"吉彩婕95口徑無圖360c.c冷飲杯 （需耐熱95度）50入/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":50},{"id":"c143","name":"JC-90口徑就口杯蓋50入/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":25},{"id":"c144","name":"栗子地瓜(小包裝/散裝10KG)10KG/箱","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"箱","price":1300},{"id":"c145","name":"G2200美國脆薯2.26KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"包","price":220},{"id":"c146","name":"杏鮑菇/D","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":280},{"id":"c147","name":"高麗菜 本地","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":18},{"id":"c148","name":"洋蔥(台)","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"袋","price":400},{"id":"c149","name":"杏鮑菇/D/加工","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":280},{"id":"c150","name":"紅K絲","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c151","name":"彩嬌","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":130},{"id":"c152","name":"美白菇-5斤","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":0},{"id":"c153","name":"紅喜菇-5斤","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":0},{"id":"c154","name":"加工蒲瓜條","spec":"","supplier":"興裕農產行","cat":"瓜果類","unit":"台斤","price":35},{"id":"c155","name":"加工白蘿蔔絲","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c156","name":"加工冬瓜丁1.5公分","spec":"","supplier":"興裕農產行","cat":"瓜果類","unit":"台斤","price":40},{"id":"c157","name":"加工白蘿蔔丁1.5公分","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c158","name":"加工白蘿蔔丁1公分","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c159","name":"加工大黃瓜厚度0.3公分","spec":"","supplier":"興裕農產行","cat":"瓜果類","unit":"台斤","price":50},{"id":"c160","name":"加工d級杏鮑菇1.5公分","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"台斤","price":60},{"id":"c161","name":"加工海茸2公分","spec":"","supplier":"興裕農產行","cat":"加工食品類","unit":"台斤","price":50},{"id":"c162","name":"加工紅蘿蔔扇片","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c163","name":"加工馬鈴薯扇片","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":40},{"id":"c164","name":"加工小黃瓜丁1公分","spec":"","supplier":"興裕農產行","cat":"瓜果類","unit":"台斤","price":65},{"id":"c165","name":"加工木耳絲","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"台斤","price":65},{"id":"c166","name":"加工洋蔥碎","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":35},{"id":"c167","name":"撕好的甜豆","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":160},{"id":"c168","name":"新光香菇精粉1斤/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":150},{"id":"c169","name":"萬家香香菇素蠔油5L/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":250},{"id":"c170","name":"小磨坊黑胡椒粒600G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":300},{"id":"c171","name":"小磨坊義大利香料250G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":165},{"id":"c172","name":"小磨坊七味唐辛子300G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":120},{"id":"c173","name":"小磨坊傳香特級胡椒粉3號1/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":100},{"id":"c174","name":"江記黃金豆醬840G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":100},{"id":"c175","name":"十全辣豆瓣醬2.8KG/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":125},{"id":"c176","name":"十全味琳1.8L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":130},{"id":"c177","name":"工研白醋5L/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":195},{"id":"c178","name":"台糖精緻細砂糖1KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":40},{"id":"c179","name":"台鹽1KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":18},{"id":"c180","name":"白冰糖1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":140},{"id":"c181","name":"醇魚露(寶冠)500CC/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":40},{"id":"c182","name":"廣生魚露500ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":60},{"id":"c183","name":"切片青椒1/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":270},{"id":"c184","name":"Frischli 德國鮮奶油1L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":210},{"id":"c185","name":"天香蜂蜜5斤/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":250},{"id":"c186","name":"合將芝麻和風沙拉醬1050G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":170},{"id":"c187","name":"合將芥末和風沙拉醬1050G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":170},{"id":"c188","name":"合將柚子和風沙拉醬1050G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":170},{"id":"c189","name":"康寶堅魚粉1.4KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":350},{"id":"c190","name":"龜甲萬甘醇醬油6L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":290},{"id":"c191","name":"酒鑽19度純米酒600ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":19},{"id":"c192","name":"金美達泰式甜辣醬920G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":80},{"id":"c193","name":"李燈燦香油3L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":250},{"id":"c194","name":"佳味香美味香油2.8L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":230},{"id":"c195","name":"佳味香一滴香香油3L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":290},{"id":"c196","name":"李錦記蠔油510G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":110},{"id":"c197","name":"香溢胡麻油2.8L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":300},{"id":"c198","name":"頂級胡麻油(佳味)3L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":540},{"id":"c199","name":"鼎生特級粉絲2.7KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":280},{"id":"c200","name":"南亞保鮮膜60*200/支","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"支","price":60},{"id":"c201","name":"宏碁1杯袋(橘色）1/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":15},{"id":"c202","name":"耐熱捲6兩6兩/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c203","name":"耐熱捲5斤5斤/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c204","name":"耐熱捲10斤10斤/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":145},{"id":"c205","name":"耐熱袋(4兩)4兩/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":30},{"id":"c206","name":"德賢單支包垃圾袋(特大/大/中/小)400G/支","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"支","price":45},{"id":"c207","name":"捲筒垃圾袋本色3KG/捲","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"捲","price":150},{"id":"c208","name":"夾鏈袋防漏4號1/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":20},{"id":"c209","name":"手扒雞手套1/包","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"包","price":16},{"id":"c210","name":"百利菜瓜布黑捲50+5片1/捲","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"捲","price":490},{"id":"c211","name":"百利海綿菜瓜布(雙面)1/包","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"包","price":35},{"id":"c212","name":"75%酒精4000CC/罐","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"罐","price":280},{"id":"c213","name":"大地漂白水3.5L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"罐","price":40},{"id":"c214","name":"鼎生洗潔精3.5L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"罐","price":40},{"id":"c215","name":"優加麗/妙可麗洗衣粉10KG/袋","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"袋","price":250},{"id":"c216","name":"愛蜜莉圓夢除油劑3.5L/桶","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"桶","price":220},{"id":"c217","name":"鄉情三折擦手紙20包/箱","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"箱","price":320},{"id":"c218","name":"圓夢300單抽30包/箱","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"箱","price":260},{"id":"c219","name":"火達人/火霹靂瓦斯罐1/罐","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"罐","price":29},{"id":"c220","name":"吉彩捷360-95紙杯50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":40},{"id":"c221","name":"小茶匙100支/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":18},{"id":"c222","name":"8*21單支包透明吸管250支/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":45},{"id":"c223","name":"美食家沙拉油18L/桶","spec":"","supplier":"鼎生食品有限公司","cat":"油品類","unit":"桶","price":880},{"id":"c224","name":"得意橄欖油1公升/罐","spec":"","supplier":"鼎生食品有限公司","cat":"油品類","unit":"箱","price":470},{"id":"c225","name":"莫尼尼純橄欖油1L/罐","spec":"","supplier":"鼎生食品有限公司","cat":"油品類","unit":"罐","price":400},{"id":"c226","name":"美食家耐炸油18L/桶","spec":"","supplier":"鼎生食品有限公司","cat":"油品類","unit":"桶","price":820},{"id":"c227","name":"味丹樹薯粉(麻布袋台太白粉)1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":20},{"id":"c228","name":"乾香菇絲1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":320},{"id":"c229","name":"黑松露醬(茵菇醬)500G罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":620},{"id":"c230","name":"珍鶴花椒粉純100%1斤/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":350},{"id":"c231","name":"新光十三香600G/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":390},{"id":"c232","name":"十全味增(細)3KG/箱","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"箱","price":140},{"id":"c233","name":"統一生機日曬海鹽450G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":50},{"id":"c234","name":"吉利丁片1KG/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":730},{"id":"c235","name":"金美達檸檬原汁1000ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":68},{"id":"c236","name":"富達檸檬原汁960ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":65},{"id":"c237","name":"切片青椒(墨西哥辣椒)2.8KG/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":265},{"id":"c238","name":"富生二砂(黃砂糖)600G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":20},{"id":"c239","name":"寶山紅糖450G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":25},{"id":"c240","name":"十全番茄醬(袋)3.2KG/袋","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"袋","price":175},{"id":"c241","name":"小磨坊正味雞粉1KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":180},{"id":"c242","name":"康寶雞粉2.2KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":480},{"id":"c243","name":"康寶雞粉1KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":270},{"id":"c244","name":"小磨坊萬用滷包300G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":120},{"id":"c245","name":"金蘭甜麵醬(小)200ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":40},{"id":"c246","name":"十全甜麵醬3KG/箱","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"箱","price":170},{"id":"c247","name":"韓式辣椒醬1KG/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":165},{"id":"c248","name":"韓式辣椒醬14KG/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":1050},{"id":"c249","name":"小磨坊洋香菜葉(12月底才有貨)250G/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":210},{"id":"c250","name":"牛頭牌沙茶醬3KG/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":540},{"id":"c251","name":"牛頭牌沙茶醬737G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":230},{"id":"c252","name":"康寶濃縮鮮雞汁1000ml/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":390},{"id":"c253","name":"COCK特級魚露700ml/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":85},{"id":"c254","name":"戰船牌玉米粉400/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":28},{"id":"c255","name":"優奇香草精113cc/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":95},{"id":"c256","name":"飛燕煉乳1.4/KG","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":145},{"id":"c257","name":"燦和麵包粉(中)3000/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":200},{"id":"c258","name":"康寶鰹魚粉1400/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":350},{"id":"c259","name":"總統牌動物鮮奶油1000ml/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":26},{"id":"c260","name":"小磨坊傳鄉特級胡椒粉600/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":100},{"id":"c261","name":"蜂蜜柚子醬2000/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":310},{"id":"c262","name":"元氣新西蘭奶油(無鹽)16/盎司","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":195},{"id":"c263","name":"可果美番茄醬手提3.15KG/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":195},{"id":"c264","name":"福綠料理米酒600/罐","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":26},{"id":"c265","name":"八角600/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":200},{"id":"c266","name":"台糖蔗糖25KG25KG/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":820},{"id":"c267","name":"福壽辣椒油3000g/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":260},{"id":"c268","name":"焙樂道高級吉利丁片1000g/盒","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"盒","price":480},{"id":"c269","name":"小磨坊脆皮鱗炸雞粉1000/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":100},{"id":"c270","name":"小磨坊粗黑胡椒600/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":300},{"id":"c271","name":"柴魚醬油1000","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"罐","price":155},{"id":"c272","name":"狀元甘醇油膏6000ml/桶","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"桶","price":180},{"id":"c273","name":"玉米筍段1000/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":120},{"id":"c274","name":"小磨坊花椒粉600/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":530},{"id":"c275","name":"寶川花椒粉600/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":455},{"id":"c276","name":"馬鈴薯澱粉1000/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":65},{"id":"c277","name":"白芝麻600/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":90},{"id":"c278","name":"義大利香料250/包","spec":"","supplier":"鼎生食品有限公司","cat":"調味料","unit":"包","price":185},{"id":"c279","name":"富達大玉米粒2125g / 罐","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"罐","price":100},{"id":"c280","name":"油蔥酥(明)600G/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":95},{"id":"c281","name":"油蔥酥(正達)600G/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":60},{"id":"c282","name":"綜合堅果四喜3KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":1800},{"id":"c283","name":"白芝麻粒600G/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":100},{"id":"c284","name":"海帶芽(細)1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":140},{"id":"c285","name":"三魚柴魚片(控湯)1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":215},{"id":"c286","name":"三魚柴魚片(涼拌)1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":270},{"id":"c287","name":"極細切海苔巧絲100G/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":145},{"id":"c288","name":"台鳳玉米粒易開罐340G/罐","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"罐","price":23},{"id":"c289","name":"花生角1斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":150},{"id":"c290","name":"東爵紅茶(藍盒)25G/24包/盒","spec":"","supplier":"鼎生食品有限公司","cat":"茶葉類","unit":"包","price":120},{"id":"c291","name":"可口可樂/另有0卡系列250CC/罐","spec":"","supplier":"鼎生食品有限公司","cat":"飲料相關","unit":"罐","price":230},{"id":"c292","name":"可爾必思(原味)1500ML/罐","spec":"","supplier":"鼎生食品有限公司","cat":"飲料相關","unit":"罐","price":230},{"id":"c293","name":"夾鏈袋防漏1號1/包","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"包","price":10},{"id":"c294","name":"整潔垃圾袋（抽式本色垃圾袋）50斤/件","spec":"","supplier":"鼎生食品有限公司","cat":"包材","unit":"件","price":520},{"id":"c295","name":"3M焦碳菜瓜布3入10011/包","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"支","price":110},{"id":"c296","name":"三花雙色手套8號1/雙","spec":"","supplier":"鼎生食品有限公司","cat":"廚房用品","unit":"雙","price":25},{"id":"c297","name":"吉彩捷260湯杯(空白)50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":35},{"id":"c298","name":"吉彩捷390湯杯(空白)50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"箱","price":830},{"id":"c299","name":"吉彩捷520湯杯(空白)50個/串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"箱","price":1050},{"id":"c300","name":"烤盤紙P42621000張/包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":1825},{"id":"c301","name":"A100蓋子C75無孔蓋1串","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"串","price":35},{"id":"c302","name":"散裝阿湯哥白色100支1包","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"包","price":35},{"id":"c303","name":"截油槽專用吸油紙200張/箱","spec":"","supplier":"鼎生食品有限公司","cat":"雜貨類","unit":"箱","price":2200},{"id":"c304","name":"瓜瓜園Q烤地瓜3KG/包","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"包","price":350},{"id":"c305","name":"香茅(冷凍新鮮)200G/包","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"包","price":75},{"id":"c306","name":"華城翡翠300G/盒","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"盒","price":80},{"id":"c307","name":"安佳(無鹽)奶油塊(紅)458G/條","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"盒","price":210},{"id":"c308","name":"茂 黑胡椒豬排20盒/箱","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"盒","price":200},{"id":"c309","name":"富統 日式豬排15片/3盒/箱","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"盒","price":500},{"id":"c310","name":"粿粉炸蝦20G/10隻10隻/盒","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"盒","price":89},{"id":"c311","name":"MCCAIN3/8脆薯2.04/kg","spec":"","supplier":"鼎生食品有限公司","cat":"冷凍食品類","unit":"包","price":220},{"id":"c312","name":"泡菜小菜用(首爾富)5斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"冷藏食品類","unit":"包","price":350},{"id":"c313","name":"黃金泡菜(首爾富)5斤/包","spec":"","supplier":"鼎生食品有限公司","cat":"冷藏食品類","unit":"包","price":450},{"id":"c314","name":"牛蒡絲(駿泰菜根園)600G/包","spec":"","supplier":"鼎生食品有限公司","cat":"冷藏食品類","unit":"包","price":110},{"id":"c315","name":"腿肉丁15k/件","spec":"","supplier":"昇大食品行","cat":"雞肉類","unit":"公斤","price":166},{"id":"c316","name":"腿排肉15k/件","spec":"","supplier":"昇大食品行","cat":"雞肉類","unit":"公斤","price":166},{"id":"c317","name":"絞肉12k/件","spec":"","supplier":"昇大食品行","cat":"豬肉類","unit":"公斤","price":175},{"id":"c318","name":"經典湖鹽雞胸100包/箱","spec":"","supplier":"野人舒食有限公司","cat":"雞肉類","unit":"包","price":49},{"id":"c319","name":"和風柚香雞胸100包/箱","spec":"","supplier":"野人舒食有限公司","cat":"雞肉類","unit":"包","price":49},{"id":"c320","name":"鹽水香蔥雞胸100包/箱","spec":"","supplier":"野人舒食有限公司","cat":"雞肉類","unit":"包","price":49},{"id":"c321","name":"剝皮辣椒雞胸100包/箱","spec":"","supplier":"野人舒食有限公司","cat":"雞肉類","unit":"包","price":49},{"id":"c322","name":"高麗菜 高山","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":20},{"id":"c323","name":"高麗菜 B+台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"件","price":35},{"id":"c324","name":"山東大白菜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":35},{"id":"c325","name":"油菜件","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"件","price":500},{"id":"c326","name":"鵝白菜","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"件","price":400},{"id":"c327","name":"大陸妹件","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"件","price":250},{"id":"c328","name":"青江菜件","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"件","price":500},{"id":"c329","name":"地瓜葉台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":28},{"id":"c330","name":"絲瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":40},{"id":"c331","name":"大黃瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":35},{"id":"c332","name":"細空心菜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":45},{"id":"c333","name":"生菜葉台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":65},{"id":"c334","name":"青花菜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":65},{"id":"c335","name":"綠櫛瓜台斤","spec":"","supplier":"興裕農產行","cat":"花果類","unit":"台斤","price":100},{"id":"c336","name":"帶殼玉米筍台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":45},{"id":"c337","name":"蔥台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":45},{"id":"c338","name":"薑絲台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":65},{"id":"c339","name":"薑片台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":65},{"id":"c340","name":"蒜碎台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":105},{"id":"c341","name":"蒜泥台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":100},{"id":"c342","name":"九層塔台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":55},{"id":"c343","name":"大辣椒台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":100},{"id":"c344","name":"小辣椒台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":120},{"id":"c345","name":"木耳絲台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":65},{"id":"c346","name":"川耳台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":95},{"id":"c347","name":"檸檬台斤","spec":"","supplier":"興裕農產行","cat":"水果類","unit":"台斤","price":100},{"id":"c348","name":"洋蔥台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":24},{"id":"c349","name":"洋蔥(袋)袋","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"袋","price":400},{"id":"c350","name":"馬鈴薯台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":24},{"id":"c351","name":"進口馬鈴薯台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":28},{"id":"c352","name":"馬K絲(加工)台斤","spec":"","supplier":"興裕農產行","cat":"加工食品類","unit":"台斤","price":40},{"id":"c353","name":"胡瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":25},{"id":"c354","name":"南瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":22},{"id":"c355","name":"牛番茄台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":88},{"id":"c356","name":"甜菜根台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":70},{"id":"c357","name":"青木瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":35},{"id":"c358","name":"白苦瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":45},{"id":"c359","name":"杏鮑菇/D袋","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":280},{"id":"c360","name":"杏C切絲台斤","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"台斤","price":78},{"id":"c361","name":"金針菇B袋","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":280},{"id":"c362","name":"白蘿蔔 台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":15},{"id":"c363","name":"紅蘿蔔台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":24},{"id":"c364","name":"紅K絲台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c365","name":"小黃瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":55},{"id":"c366","name":"紅黃椒B台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":65},{"id":"c367","name":"青椒B台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":35},{"id":"c368","name":"茄子B+台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c369","name":"甜豆進口台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":160},{"id":"c370","name":"碎菜脯台斤","spec":"","supplier":"興裕農產行","cat":"未分類","unit":"台斤","price":35},{"id":"c371","name":"豆乾(五香)台斤","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"台斤","price":36},{"id":"c372","name":"生豆包台斤","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"台斤","price":75},{"id":"c373","name":"白干絲台斤","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"台斤","price":50},{"id":"c374","name":"四角油丁台斤","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"台斤","price":45},{"id":"c375","name":"豆芽菜台斤","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"台斤","price":14},{"id":"c376","name":"中華豆腐盒","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"盒","price":17},{"id":"c377","name":"板豆腐板","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"板","price":105},{"id":"c378","name":"去皮洋蔥台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":30},{"id":"c379","name":"糯米椒台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":125},{"id":"c380","name":"黃豆芽台斤","spec":"","supplier":"興裕農產行","cat":"豆製品類","unit":"台斤","price":23},{"id":"c381","name":"冬瓜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":25},{"id":"c382","name":"長豆台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":88},{"id":"c383","name":"白花菜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":40},{"id":"c384","name":"香菜把","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"把","price":25},{"id":"c385","name":"大白菜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":23},{"id":"c386","name":"老薑台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":95},{"id":"c387","name":"蒜仁台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":105},{"id":"c388","name":"薑泥台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":70},{"id":"c389","name":"玉米條台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":55},{"id":"c390","name":"玉米去皮台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":70},{"id":"c391","name":"袖珍菇台斤","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"台斤","price":75},{"id":"c392","name":"香茅台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":100},{"id":"c393","name":"南薑台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":160},{"id":"c394","name":"乾猴頭菇台斤","spec":"","supplier":"興裕農產行","cat":"未分類","unit":"台斤","price":0},{"id":"c395","name":"紅喜菇-4兩包","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"包","price":32},{"id":"c396","name":"美白菇-4兩包","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"包","price":32},{"id":"c397","name":"小小菇袋","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":400},{"id":"c398","name":"香菇片台斤","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"台斤","price":85},{"id":"c399","name":"中蘆筍把","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"把","price":65},{"id":"c400","name":"櫻桃蘿蔔300g/包","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"包","price":150},{"id":"c401","name":"苜蓿芽台斤","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"台斤","price":75},{"id":"c402","name":"球芽甘藍500g/包","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"包","price":0},{"id":"c403","name":"金桔台斤","spec":"","supplier":"興裕農產行","cat":"水果類","unit":"台斤","price":80},{"id":"c404","name":"水蓮5兩/包","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"包","price":35},{"id":"c405","name":"芹菜台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":55},{"id":"c406","name":"雪豆苗盒","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"盒","price":230},{"id":"c407","name":"筍絲台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":50},{"id":"c408","name":"桶筍絲台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":50},{"id":"c409","name":"麻竹筍絲台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":45},{"id":"c410","name":"鳥蛋台斤","spec":"","supplier":"興裕農產行","cat":"蛋白質","unit":"台斤","price":145},{"id":"c411","name":"紅酸模盒","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"盒","price":225},{"id":"c412","name":"栗子南瓜台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":45},{"id":"c413","name":"帶皮芋頭台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":50},{"id":"c414","name":"檸檬葉台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":850},{"id":"c415","name":"香蘭葉台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":250},{"id":"c416","name":"海蜇皮台斤","spec":"","supplier":"興裕農產行","cat":"水產類","unit":"台斤","price":150},{"id":"c417","name":"海帶芽台斤","spec":"","supplier":"興裕農產行","cat":"水產類","unit":"台斤","price":45},{"id":"c418","name":"海帶絲台斤","spec":"","supplier":"興裕農產行","cat":"水產類","unit":"台斤","price":54},{"id":"c419","name":"蒟蒻絲180g/包","spec":"","supplier":"興裕農產行","cat":"加工食品類","unit":"包","price":38},{"id":"c420","name":"粉皮600g/包","spec":"","supplier":"興裕農產行","cat":"加工食品類","unit":"包","price":95},{"id":"c421","name":"素腰花包","spec":"","supplier":"興裕農產行","cat":"加工食品類","unit":"包","price":63},{"id":"c422","name":"調味海蜇絲台斤","spec":"","supplier":"興裕農產行","cat":"水產類","unit":"台斤","price":175},{"id":"c423","name":"水洗蓮藕包","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"包","price":105},{"id":"c424","name":"大蛤公斤","spec":"","supplier":"興裕農產行","cat":"海鮮類","unit":"台斤","price":110},{"id":"c425","name":"美白菇-5台斤袋","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":0},{"id":"c426","name":"紅喜菇-5台斤袋","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"袋","price":0},{"id":"c427","name":"鹹蛋粒","spec":"","supplier":"興裕農產行","cat":"蛋白質","unit":"粒","price":11},{"id":"c428","name":"圓茄台斤","spec":"","supplier":"興裕農產行","cat":"蔬菜類","unit":"台斤","price":0},{"id":"c429","name":"紅地瓜台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":33},{"id":"c430","name":"水果玉米台斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"台斤","price":0},{"id":"c431","name":"大菇台斤","spec":"","supplier":"興裕農產行","cat":"蕈菇類","unit":"台斤","price":110},{"id":"c432","name":"蘿蔓台斤","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"台斤","price":130},{"id":"c433","name":"美生菜台斤","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"台斤","price":110},{"id":"c434","name":"紫高麗菜台斤","spec":"","supplier":"興裕農產行","cat":"生菜類","unit":"台斤","price":40},{"id":"c435","name":"毛豆仁公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":120},{"id":"c436","name":"冷凍青花 公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":65},{"id":"c437","name":"冷凍白花公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":65},{"id":"c438","name":"冷凍紅K丁公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":40},{"id":"c439","name":"玉米粒公斤","spec":"","supplier":"興裕農產行","cat":"五穀根莖類","unit":"公斤","price":70},{"id":"c440","name":"冷凍玉米塊公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":0},{"id":"c441","name":"冷凍四季豆公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":68},{"id":"c442","name":"冷凍玉米筍公斤","spec":"","supplier":"興裕農產行","cat":"冷凍食品類","unit":"公斤","price":110},{"id":"c443","name":"蔥花台斤","spec":"","supplier":"興裕農產行","cat":"辛香類","unit":"台斤","price":85},{"id":"c444","name":"五福米50斤","spec":"","supplier":"萬鈞行","cat":"五穀根莖類","unit":"台斤","price":25},{"id":"c445","name":"紫糯米50斤","spec":"","supplier":"萬鈞行","cat":"五穀根莖類","unit":"台斤","price":37},{"id":"c446","name":"大豆沙拉油18L","spec":"","supplier":"萬鈞行","cat":"油品類","unit":"桶","price":870},{"id":"c447","name":"枸杞600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"包","price":180},{"id":"c448","name":"小魚乾 600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":170},{"id":"c449","name":"乾黑木耳600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":200},{"id":"c450","name":"金農泰國米50斤","spec":"","supplier":"萬鈞行","cat":"五穀根莖類","unit":"台斤","price":1500},{"id":"c451","name":"美食家沙拉油／耐炸油18L","spec":"","supplier":"萬鈞行","cat":"油品類","unit":"台斤","price":890},{"id":"c452","name":"甘草600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":210},{"id":"c453","name":"草果600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":220},{"id":"c454","name":"紅棗600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":70},{"id":"c455","name":"當歸尾片600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":550},{"id":"c456","name":"桂枝600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":70},{"id":"c457","name":"桂角（皮600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":160},{"id":"c458","name":"川芎600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":210},{"id":"c459","name":"茯苓600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":220},{"id":"c460","name":"熟地600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":330},{"id":"c461","name":"炒白芍600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":450},{"id":"c462","name":"炒白朮600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":830},{"id":"c463","name":"黨蔘600g","spec":"","supplier":"萬鈞行","cat":"乾貨類","unit":"台斤","price":650}];}
+function seedOrders(){return [];}
+
+window.__applyFB=function(storesData,revenueData){
+  let list=Object.entries(storesData||{}).map(([k,v])=>({id:k,name:(v&&v.name)||k}));
+  list=list.filter(s=>!/機動/.test(s.name));
+  if(list.length)STORES=list;
+  if(!selStore||!STORES.find(s=>s.id===selStore))selStore=STORES[0].id;
+  fb={status:'ok',revenue:revenueData||{}};
+  if(typeof renderGate==='function'&&gateStep==='store')renderGate();
+  persistLocal();render();};
+window.__failFB=function(){fb={status:'fail',revenue:null};
+  if(!STORES.find(s=>s.id===selStore))selStore=STORES[0].id;
+  if(typeof renderGate==='function'&&gateStep==='store')renderGate();
+  render();};
+
+
+/* ====================== 雲端多人版：登入 / 門市 / 同步 ====================== */
+let CLOUD_ON=false, CLOUD_USER=null, CLOUD_ACL=null, cloudUnsub=[], gateStep='loading', gateErrMsg='';
+function encK(x){return String(x).replace(/[.$#\[\]\/~]/g,c=>'~'+c.charCodeAt(0).toString(16).padStart(2,'0'));}
+function decK(x){return String(x).replace(/~([0-9a-f]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));}
+function aclKey(em){return String(em||'').replace(/\./g,',').replace(/@/g,',');}
+const SP=()=>'order/'+selStore;
+
+/* ---- 上傳（共用資料 + 本門市設定，不含訂單與退貨單，那兩個逐筆寫） ---- */
+function cloudPushShared(){ if(!CLOUD_ON||!window.CLOUD)return;
+  const pm={}; products.forEach(p=>{pm[encK(p.id)]=p;});
+  const wm={}; Object.keys(weekly).forEach(k=>{wm[encK(k)]=weekly[k];});
+  CLOUD.set('shared/products',pm); CLOUD.set('shared/suppliers',suppliers); CLOUD.set('shared/weekly',wm);
+}
+function pickStoreMap(obj){const o={},pre=selStore+'|';
+  Object.keys(obj||{}).forEach(k=>{if(k.indexOf(pre)===0)o[encK(k.slice(pre.length))]=obj[k];});return o;}
+function cloudPushStore(){ if(!CLOUD_ON||!selStore||!window.CLOUD)return;
+  CLOUD.set(SP()+'/matManual',pickStoreMap(matManual));
+  CLOUD.set(SP()+'/favs',pickStoreMap(favs));
+  CLOUD.set(SP()+'/lastQty',pickStoreMap(lastQty));
+  CLOUD.set(SP()+'/manualRev',pickStoreMap(manualRev));
+  CLOUD.set(SP()+'/projRev',pickStoreMap(projRev));
+}
+let __pushT=null;
+function cloudPush(){ if(!CLOUD_ON)return; clearTimeout(__pushT);
+  __pushT=setTimeout(()=>{try{cloudPushShared();cloudPushStore();}catch(e){console.warn('同步失敗',e);}},400); }
+/* ---- 訂單／退貨單：逐筆寫，避免兩個人同時下單互相蓋掉 ---- */
+function cloudSaveOrder(o){ if(CLOUD_ON&&window.CLOUD)CLOUD.set(SP()+'/orders/'+encK(o.no),o); }
+function cloudSaveReturn(r){ if(CLOUD_ON&&window.CLOUD)CLOUD.set(SP()+'/returns/'+encK(r.id),r); }
+function cloudDelReturn(id){ if(CLOUD_ON&&window.CLOUD)CLOUD.del(SP()+'/returns/'+encK(id)); }
+
+/* ---- 監聽：別人改了，我這邊自動更新 ---- */
+function cloudBind(){
+  cloudUnsub.forEach(u=>{try{u();}catch(e){}}); cloudUnsub=[];
+  const applyMap=(target,v)=>{const pre=selStore+'|';
+    Object.keys(target).forEach(k=>{if(k.indexOf(pre)===0)delete target[k];});
+    Object.keys(v||{}).forEach(k=>{target[pre+decK(k)]=v[k];});};
+  cloudUnsub.push(CLOUD.watch('shared/products',v=>{
+    if(v&&Object.keys(v).length)products=Object.keys(v).map(k=>v[k]);
+    else if(products.length)cloudPushShared();
+    render();}));
+  cloudUnsub.push(CLOUD.watch('shared/suppliers',v=>{
+    if(v&&Object.keys(v).length)suppliers=Object.keys(v).map(k=>v[k]);
+    else if(suppliers.length)cloudPushShared();
+    render();}));
+  cloudUnsub.push(CLOUD.watch('shared/weekly',v=>{
+    if(v){weekly={};Object.keys(v).forEach(k=>{weekly[decK(k)]=v[k];});}
+    else if(Object.keys(weekly).length)cloudPushShared();
+    render();}));
+  cloudUnsub.push(CLOUD.watch(SP()+'/orders',v=>{
+    orders=v?Object.keys(v).map(k=>v[k]).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:(a.no<b.no?1:-1)):[];
+    persistLocal();render();}));
+  cloudUnsub.push(CLOUD.watch(SP()+'/returns',v=>{
+    returns=v?Object.keys(v).map(k=>v[k]):[];persistLocal();render();}));
+  [['matManual',()=>matManual],['favs',()=>favs],['lastQty',()=>lastQty],['manualRev',()=>manualRev],['projRev',()=>projRev]]
+    .forEach(([name,get])=>{cloudUnsub.push(CLOUD.watch(SP()+'/'+name,v=>{applyMap(get(),v);persistLocal();render();}));});
+}
+
+/* ---- 登入畫面 ---- */
+window.__cloudReady=function(){
+  if(!window.CLOUD){gateStep='error';gateErrMsg='連不到雲端，請檢查網路後重新整理。';renderGate();return;}
+  CLOUD.onAuth(async u=>{
+    CLOUD_USER=u;
+    if(!u){CLOUD_ON=false;CLOUD_ACL=null;gateStep='login';renderGate();
+      document.getElementById('gate').classList.remove('hide');return;}
+    gateStep='store';renderGate();
+    try{CLOUD_ACL=await CLOUD.read('acl/'+aclKey(u.email));}catch(e){CLOUD_ACL=null;}
+    if(!CLOUD_ACL){gateStep='noacl';}
+    renderGate();
+  });
+};
+function allowedStores(){
+  if(!CLOUD_ACL)return [];
+  if(CLOUD_ACL.all===true)return STORES;
+  const m=CLOUD_ACL.stores||{};
+  return STORES.filter(s=>m[s.id]===true);
+}
+function renderGate(){
+  const b=document.getElementById('gateBody');if(!b)return;
+  if(gateStep==='loading'){b.innerHTML='<div class="gspin"></div><div class="muted" style="margin-top:16px;text-align:center">連線中…</div>';return;}
+  if(gateStep==='error'){b.innerHTML=`<h2>連線失敗</h2><div class="gerr">${esc(gateErrMsg)}</div>
+    <button class="btn" style="width:100%" onclick="location.reload()">重新整理</button>`;return;}
+  if(gateStep==='login'){
+    b.innerHTML=`<div style="text-align:center;font-size:38px;margin-bottom:6px">🛒</div>
+      <h2 style="text-align:center">健人餐廚 叫貨系統</h2>
+      <div class="muted" style="text-align:center;margin-bottom:20px;font-size:13.5px">登入一次就好，這台裝置會記住你</div>
+      ${gateErrMsg?`<div class="gerr">${esc(gateErrMsg)}</div>`:''}
+      <div class="fld"><label>帳號</label><input id="gEmail" type="email" autocomplete="username" inputmode="email" placeholder="order@jianren.com" value="${esc(load('p_lastemail')||'')}"></div>
+      <div class="fld"><label>密碼</label><input id="gPw" type="password" autocomplete="current-password" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="btn" id="gBtn" style="width:100%;margin-top:4px" onclick="doLogin()">登入</button>`;
+    setTimeout(()=>{const e=document.getElementById(load('p_lastemail')?'gPw':'gEmail');e&&e.focus();},120);return;}
+  if(gateStep==='noacl'){
+    b.innerHTML=`<h2>這個帳號還沒有權限</h2>
+      <div class="gerr">帳號 <b>${esc((CLOUD_USER&&CLOUD_USER.email)||'')}</b> 尚未設定可使用的門市。<br>請聯絡管理者在 Firebase 的 acl 加入這個帳號。</div>
+      <button class="btn grey" style="width:100%" onclick="doLogout()">換一個帳號登入</button>`;return;}
+  if(gateStep==='store'){
+    const list=allowedStores(), last=load('p_selstore');
+    if(!list.length){
+      b.innerHTML=`<div class="gspin"></div><div class="muted" style="margin-top:16px;text-align:center">正在讀取門市清單…</div>
+        <div style="margin-top:18px"><button class="btn grey mini" style="width:100%" onclick="doLogout()">登出</button></div>`;return;}
+    if(!list.find(x=>x.id===gatePick))gatePick=(list.find(x=>x.id===last)||list[0]).id;
+    b.innerHTML=`<h2>今天在哪一間店？</h2>
+      <div class="muted" style="margin-bottom:18px;font-size:13.5px">選錯的話貨會送錯店，所以每次開啟都確認一下</div>
+      ${list.map(x=>`<button class="storeopt ${x.id===gatePick?'sel':''}" onclick="gatePick='${x.id}';renderGate()">
+        <span>📍</span><span>${esc(x.name)}${x.id===last?'<span class="last">✓ 上次就是這間</span>':''}</span><span class="tick">✓</span></button>`).join('')}
+      <button class="btn" style="width:100%;margin-top:12px" onclick="enterApp()">確認，開始叫貨</button>
+      <button class="btn grey mini" style="width:100%;margin-top:9px" onclick="doLogout()">登出</button>`;return;}
+}
+let gatePick='';
+/* 連不到雲端時不要卡在「連線中…」 */
+setTimeout(()=>{ if(gateStep==='loading'){ gateStep='error';
+  gateErrMsg='連不到雲端資料庫。可能是網路不通，或這台裝置擋掉了 Google 服務。請確認網路後重新整理。';
+  renderGate(); } },12000);
+window.doLogin=async function(){
+  const em=(document.getElementById('gEmail')||{}).value, pw=(document.getElementById('gPw')||{}).value;
+  if(!em||!pw){gateErrMsg='請輸入帳號與密碼';renderGate();return;}
+  const btn=document.getElementById('gBtn');if(btn){btn.textContent='登入中…';btn.disabled=true;}
+  try{ await CLOUD.login(em.trim(),pw); gateErrMsg=''; store.set('p_lastemail',JSON.stringify(em.trim())); }
+  catch(e){ const c=(e&&e.code)||'';
+    gateErrMsg = /wrong-password|invalid-credential|invalid-login/.test(c)?'帳號或密碼不對，再試一次。'
+      : /user-not-found/.test(c)?'找不到這個帳號。'
+      : /too-many-requests/.test(c)?'嘗試太多次，請等幾分鐘再試。'
+      : /network/.test(c)?'連不上網路，檢查一下訊號。'
+      : '登入失敗：'+c;
+    gateStep='login';renderGate(); }
+};
+window.doLogout=async function(){ try{await CLOUD.logout();}catch(e){} gatePick='';gateErrMsg='';location.reload(); };
+window.enterApp=function(){
+  if(!gatePick)return;
+  selStore=gatePick; CLOUD_ON=true;
+  store.set('p_selstore',JSON.stringify(selStore));
+  document.getElementById('gate').classList.add('hide');
+  cloudBind(); render();
+};
+window.switchStore=function(){ CLOUD_ON=false; gateStep='store'; gatePick=selStore;
+  document.getElementById('gate').classList.remove('hide'); renderGate(); };
+
+/* 模組載入前先把登入框畫出來，看起來比較不像當掉 */
+setTimeout(()=>{ if(gateStep==='loading'&&!window.CLOUD){ gateStep='login'; renderGate();
+  const bt=document.getElementById('gBtn'); if(bt){bt.disabled=true;bt.textContent='連線中…';} } },1500);
+setInterval(()=>{ const bt=document.getElementById('gBtn');
+  if(bt&&window.CLOUD&&bt.disabled&&bt.textContent==='連線中…'){bt.disabled=false;bt.textContent='登入';} },500);
+let page='dashboard';
+document.querySelectorAll('[data-page]').forEach(el=>el.onclick=()=>go(el.dataset.page));
+function go(p){page=p;document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.page===p));render();window.scrollTo(0,0);closeMenu();}
+window.toggleMenu=function(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('backdrop').classList.toggle('show');};
+window.closeMenu=function(){document.getElementById('sidebar').classList.remove('open');document.getElementById('backdrop').classList.remove('show');};
+function badges(){const c=Object.values(cart).reduce((s,q)=>s+(q>0?1:0),0);setBadge('cartBadge',c);}
+function setBadge(id,n){const e=document.getElementById(id);if(!e)return;e.textContent=n;e.style.display=n?'block':'none';}
+function curStoreName(){const s=STORES.find(x=>x.id===selStore);return s?s.name:'—';}
+function fillStoreSwitch(){const sel=document.getElementById('gStore');if(!sel)return;sel.innerHTML=STORES.map(s=>`<option value="${s.id}" ${selStore===s.id?'selected':''}>${esc(s.name)}</option>`).join('');sel.onchange=e=>{selStore=e.target.value;persist();render();};}
+function render(){badges();fillStoreSwitch();
+  const ab=document.getElementById('acctStore');if(ab)ab.textContent=curStoreName();document.getElementById('content').innerHTML=({fav:vFav,dashboard:vDash,payment:vPayment,supdetail:vSupDetail,products:vProducts,weekly:vWeekly,prodadmin:vProdAdmin,suppliers:vSuppliers,ordering:vOrdering,orders:vOrders,receiving:vReceiving,returns:vReturns}[page])();bind();}
+function openModal(html,wide){const b=document.getElementById('modalbox');b.innerHTML=html;b.classList.toggle('wide',!!wide);document.getElementById('modalbg').classList.add('show');}
+function hideModal(){document.getElementById('modalbg').classList.remove('show');}
+
+/* ====== 結算區間與物料計算 ====== */
+function monthWindow(month,type){const [y,m]=month.split('-').map(Number);
+  if(type==='現金'){const last=new Date(y,m,0).getDate();return{start:`${month}-01`,end:`${month}-${pad2(last)}`};}
+  const pm=m===1?{y:y-1,m:12}:{y,m:m-1};return{start:`${pm.y}-${pad2(pm.m)}-26`,end:`${month}-25`};}
+// 稅別：廠商報價是含稅還是未稅（預設含稅＝維持原本算法不變）
+function supTax(name){const s=suppliers.find(x=>x.name===name);return (s&&s.tax)||'含稅';}
+function taxOf(name,net){return supTax(name)==='未稅'?Math.round(net*0.05):0;}
+function withTax(name,net){return net+taxOf(name,net);}
+function retTotal(r){const m=Number(r.override);if(r.override!==''&&r.override!=null&&!isNaN(m))return m;
+  return (r.items||[]).reduce((s,i)=>s+(Number(i.amount)||0),0);}
+// 退貨／折讓：某廠商在日期區間內的總扣款（正數）
+function returnsInRange(supplier,start,end){return returns.filter(r=>r.store===selStore&&r.supplier===supplier&&r.date>=start&&r.date<=end).reduce((s,r)=>s+retTotal(r),0);}
+function returnsOn(supplier,date){return returns.filter(r=>r.store===selStore&&r.supplier===supplier&&r.date===date);}
+function returnsWin(supplier,win){return returnsInRange(supplier,win.start,win.end);}
+function autoMaterial(supplier,win){const g=orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=win.start&&o.date<=win.end).reduce((s,o)=>s+orderTotal(o),0);
+  return withTax(supplier,g-returnsWin(supplier,win));}
+function grossMaterial(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=win.start&&o.date<=win.end).reduce((s,o)=>s+orderTotal(o),0);}
+function manualOn(supplier,date){return matManual[`${selStore}|${supplier}|${date}`]||0;}
+function manualMaterialM(supplier,month){ // 該結算區間內所有手動調整加總
+  const win=monthWindow(month,supType(supplier));const prefix=`${selStore}|${supplier}|`;let sum=0;
+  Object.keys(matManual).forEach(k=>{if(!k.startsWith(prefix))return;const d=k.slice(prefix.length);
+    const v=Number(matManual[k])||0;
+    if(d.length===7){if(d===month)sum+=v;}          // 舊格式（整月）
+    else if(d>=win.start&&d<=win.end)sum+=v;});
+  return sum;}
+function manualMaterial(supplier){return manualMaterialM(supplier,selMonth);}
+function daysInMonth(m){const [y,mo]=m.split('-').map(Number);return new Date(y,mo,0).getDate();}
+// 這個月已經有營業額紀錄的天數（推估的基礎）
+function revDays(month){
+  if(fb.status==='ok'){const sr=(fb.revenue||{})[selStore]||{};
+    return Object.keys(sr).filter(d=>d.startsWith(month)&&dayRevenueFB(d)>0).length;}
+  const cur=curMonth();
+  if(month<cur)return daysInMonth(month);
+  if(month>cur)return 0;
+  return Number(isoAt(0).split('-')[2]);}
+// 依目前日均推估整月營收
+function projectedRevenue(month){const d=revDays(month),total=monthRevenueM(month),dim=daysInMonth(month);
+  if(!d||!total)return 0;
+  return d>=dim?total:Math.round(total/d*dim);}
+function addDays(iso,n){const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return isoOf(d);}
+function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);}
+// 營業額：該月 1 號到第 day 天
+function revenueUpTo(month,day){
+  if(fb.status!=='ok')return null;
+  const sr=(fb.revenue||{})[selStore]||{};
+  return Object.keys(sr).filter(d=>d.startsWith(month)&&Number(d.split('-')[2])<=day)
+    .reduce((s,d)=>s+dayRevenueFB(d),0);}
+function elapsedDayOfMonth(month){const cur=curMonth();
+  if(month<cur)return daysInMonth(month);
+  if(month>cur)return 0;
+  return Number(isoAt(0).split('-')[2]);}
+// 物料：指定日期區間內的金額
+function materialInRange(supplier,start,end){
+  const auto=orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=start&&o.date<=end)
+    .reduce((s,o)=>s+orderTotal(o),0);
+  const prefix=`${selStore}|${supplier}|`;let man=0;
+  Object.keys(matManual).forEach(k=>{if(!k.startsWith(prefix))return;const d=k.slice(prefix.length);
+    if(d.length===7)return;                       // 舊的整月格式無法比同期，略過
+    if(d>=start&&d<=end)man+=Number(matManual[k])||0;});
+  return withTax(supplier,auto-returnsInRange(supplier,start,end))+man;}
+// 某廠商：本期已過的天數 vs 上期同樣天數
+function supplierSamePeriod(supplier,month,pm){
+  const t=supType(supplier),w=monthWindow(month,t),wp=monthWindow(pm,t),today=isoAt(0);
+  const end=today<w.end?today:w.end;
+  if(end<w.start)return {cur:0,prev:0,days:0};
+  const elapsed=daysBetween(w.start,end);
+  let pEnd=addDays(wp.start,elapsed); if(pEnd>wp.end)pEnd=wp.end;
+  return {cur:materialInRange(supplier,w.start,end),prev:materialInRange(supplier,wp.start,pEnd),days:elapsed+1};}
+function totalSamePeriod(month,pm){let c=0,p=0;
+  suppliers.forEach(sp=>{const r=supplierSamePeriod(sp.name,month,pm);c+=r.cur;p+=r.prev;});
+  return {cur:c,prev:p};}
+function projOverride(month){const v=projRev[`${selStore}|${month}`];
+  return (v===undefined||v===null||v==='')?null:Number(v);}
+function effProjRevenue(month){const o=projOverride(month);return o!=null?o:projectedRevenue(month);}
+function openProj(){const m=selMonth,auto=projectedRevenue(m),cur=projOverride(m);
+  openModal(`<h3>設定 ${m} 預估整月營業額</h3>
+    <div class="muted" style="font-size:12.5px;line-height:1.8;margin-bottom:14px">
+      企業戶量每月不一定時，可以直接填你們自己抓的預估數。<br>
+      填了之後，「本月還能叫多少貨」的物料預算就會用這個數字去算。</div>
+    <div class="fld"><label>預估整月營業額</label>
+      <input type="number" id="pjVal" value="${cur!=null?cur:''}" placeholder="${auto?'例如 '+fmt(auto):'請輸入金額'}"></div>
+    ${auto?`<div class="muted" style="font-size:12px;margin-bottom:6px">系統依目前日均推估為 <b style="color:var(--ink)">$${fmt(auto)}</b>（僅供參考）</div>`:''}
+    <div class="modact">${cur!=null?`<button class="btn grey mini" onclick="clearProj()" style="margin-right:auto">改用系統推估</button>`:''}
+      <button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveProj()">儲存</button></div>`);}
+function saveProj(){const v=parseInt((document.getElementById('pjVal')||{}).value)||0;
+  const k=`${selStore}|${selMonth}`;if(v>0)projRev[k]=v;else delete projRev[k];
+  persist();hideModal();toast('預估營業額已儲存 ✓');render();}
+function clearProj(){delete projRev[`${selStore}|${selMonth}`];persist();hideModal();toast('已改用系統推估');render();}
+function prevMonth(m){const [y,mo]=m.split('-').map(Number);return mo===1?`${y-1}-12`:`${y}-${pad2(mo-1)}`;}
+function datesBetween(a,b){const out=[];const d=new Date(a+'T00:00:00'),end=new Date(b+'T00:00:00');
+  while(d<=end){out.push(`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`);d.setDate(d.getDate()+1);}return out;}
+function weekday(iso){return ['日','一','二','三','四','五','六'][new Date(iso+'T00:00:00').getDay()];}
+function supplierMaterialM(supplier,month){const win=monthWindow(month,supType(supplier));return autoMaterial(supplier,win)+manualMaterialM(supplier,month);}
+function supplierMaterial(supplier){return supplierMaterialM(supplier,selMonth);}
+function totalMaterialM(month){return suppliers.reduce((s,sp)=>s+supplierMaterialM(sp.name,month),0);}
+function totalMaterial(){return totalMaterialM(selMonth);}
+function orderTotal(o){return o.items.reduce((s,i)=>s+((Number(i.price)||0)*(Number(i.qty)||0)),0);}
+// 營業額（月曆月，來自打卡）
+function dayRevenueFB(date){const r=((fb.revenue||{})[selStore]||{})[date];if(!r)return 0;return (r.lunchPickup||0)+(r.lunchDelivery||0)+(r.lunchUber||0)+(r.dinnerPickup||0)+(r.dinnerDelivery||0)+(r.dinnerUber||0);}
+function monthRevenueM(month){if(fb.status!=='ok')return manualRev[`${selStore}|${month}`]||0;
+  const sr=(fb.revenue||{})[selStore]||{};return Object.keys(sr).filter(d=>d.startsWith(month)).reduce((s,d)=>s+dayRevenueFB(d),0);}
+function monthRevenue(){return monthRevenueM(selMonth);}
+let manualRev=load('p_manualrev')||{}; // fallback：store|month = 營業額
+function manualRevTotal(){return manualRev[`${selStore}|${selMonth}`]||0;}
+
+/* ====== 營運儀表板 ====== */
+function vDash(){
+  const pm=prevMonth(selMonth),pmLabel=pm.split('-')[1]+'月';
+  const rev=monthRevenue(), mat=totalMaterial();
+  const pct=rev?mat/rev*100:null, st=health(pct);
+  // 同期比較（避免月中拿半個月比整月）
+  const dayN=elapsedDayOfMonth(selMonth);
+  const revPS=revenueUpTo(pm,dayN);           // 上月同一天數的營收
+  const matSP=totalSamePeriod(selMonth,pm);   // 物料同期
+  const pctPS=(revPS&&matSP.prev)?matSP.prev/revPS*100:null;
+  const conn=fb.status==='ok'?`<span class="conn ok"><span class="dot"></span>營業額即時來自打卡系統（Firebase）</span>`
+    :fb.status==='loading'?`<span class="conn load"><span class="dot"></span>連線打卡系統中…</span>`
+    :`<span class="conn fail"><span class="dot"></span>連不到打卡系統，營業額請到「貨款結算」手動輸入</span>`;
+  const spLabel=`${pmLabel}同期`;
+  const rows=suppliers.map(sp=>{const r=supplierSamePeriod(sp.name,selMonth,pm);
+    return {...sp,amt:supplierMaterialM(sp.name,selMonth),cur:r.cur,prev:r.prev};})
+    .filter(r=>r.amt>0||r.prev>0).sort((a,b)=>b.amt-a.amt);
+  const maxAmt=Math.max(1,...rows.map(r=>r.amt));
+  return `<div class="crumb">首頁 / 營運</div><h1>營運儀表板</h1>${conn}
+  <div class="card"><div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
+    <div class="field" style="max-width:180px"><label>月份</label><select id="dMonth">${monthOptions(selMonth)}</select></div>
+    <div class="muted" style="padding-bottom:10px">門市：<b style="color:var(--ink)">${esc(curStoreName())}</b>
+      　·　漲跌與 <b style="color:var(--ink)">${spLabel}</b> 比較</div></div></div>
+  <div class="kpis">
+    <div class="kpi hero ${st.cls}"><div class="lab">物料佔比（${selMonth}）</div>
+      <div class="big">${pct==null?'—':pct.toFixed(1)+'%'}</div>
+      <div class="status ${st.cls}">${st.icon} ${st.label}</div>
+      <div class="gauge"><i style="width:${pct==null?0:Math.min(100,pct)}%"></i></div></div>
+    <div class="kpi"><div class="lab">本月累計營業額</div><div class="big">$${fmt(rev)}</div>
+      ${revPS?`<div class="sub">${momChip(rev,revPS,spLabel,'up-good')}</div>`:''}</div>
+    <div class="kpi"><div class="lab" style="display:flex;align-items:center;gap:8px">預估整月營業額
+        <button class="btn grey mini" style="padding:4px 10px;font-size:11.5px" onclick="openProj()">✏️ 設定</button></div>
+      <div class="big" style="color:var(--amber)">$${fmt(effProjRevenue(selMonth))}</div></div>
+    <div class="kpi"><div class="lab">本月物料成本</div><div class="big">$${fmt(mat)}</div>
+      ${matSP.prev?`<div class="sub">${momChip(matSP.cur,matSP.prev,spLabel,'up-bad')}</div>`:''}</div>
+  </div>
+  ${budgetCard(selMonth,mat)}
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+      <b>各廠商物料｜與 ${spLabel} 比較</b><span class="muted" style="font-size:12px">本期金額 · 佔營收比 · 同期漲跌</span></div>
+    ${rows.length?rows.map(r=>{const p=rev?r.amt/rev*100:0;
+      return `<div class="barrow"><div class="nm">${esc(r.name)}</div>
+      <div class="track"><div class="fill" style="width:${Math.min(100,r.amt/maxAmt*100)}%"></div></div>
+      <div class="pc">$${fmt(r.amt)}<span class="muted"> · ${p.toFixed(1)}%</span></div>
+      <div style="width:118px;text-align:right;flex-shrink:0">${momChip(r.cur,r.prev,spLabel,'up-bad')}</div></div>`;}).join('')
+    :'<div class="empty">這個月還沒有物料資料。</div>'}</div>`;
+}
+function projBasis(month){const o=projOverride(month),auto=projectedRevenue(month);
+  if(o!=null)return `<span class="pill c">手動設定</span>${auto?`<span class="muted"> 系統推估 $${fmt(auto)}</span>`:''}`;
+  const d=revDays(month),dim=daysInMonth(month),actual=monthRevenueM(month);
+  if(!d||!actual)return '<span class="muted">尚無資料 · 可點「設定」手動填</span>';
+  if(d>=dim)return '<span class="muted">本月已結束（實際數）</span>';
+  return `<span class="muted">系統推估 · 已過 ${d}/${dim} 天　日均 $${fmt(Math.round(actual/d))}</span>`;}
+// 本月還能叫多少貨：依推估營收 × 目標% 反推物料預算
+function budgetCard(month,matUsed){
+  const proj=effProjRevenue(month),manual=projOverride(month)!=null,days=revDays(month),dim=daysInMonth(month);
+  const actual=monthRevenueM(month);
+  if(!proj)return `<div class="card"><b>本月還能叫多少貨</b>
+    <div class="empty" style="padding:26px">還沒有預估營業額，無法算出可叫貨額度。
+      <div style="margin-top:16px"><button class="btn" onclick="openProj()">✏️ 手動設定預估整月營業額</button></div></div></div>`;
+  const budget=Math.round(proj*TARGET/100);
+  const remain=budget-matUsed;
+  const usedPct=budget?Math.min(100,matUsed/budget*100):0;
+  const over=remain<0;
+  const col=over?'var(--red)':usedPct>85?'var(--warn)':'var(--green)';
+  const daily=days?Math.round(actual/days):0;
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+      <b style="font-size:16px">本月還能叫多少貨</b>
+      <span class="muted" style="font-size:12px">${manual?'依你手動設定的預估營業額計算':`依已登錄 ${days} 天的日均 $${fmt(daily)} 推估整月（${dim} 天）`}</span></div>
+    <div style="display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap;margin:14px 0 6px">
+      <div><div class="lab muted" style="font-size:12.5px;margin-bottom:6px">${over?'已超出預算':'還可叫貨金額'}</div>
+        <div style="font-size:38px;font-weight:800;letter-spacing:-.04em;line-height:1;color:${col}">$${fmt(Math.abs(remain))}</div></div>
+      <div style="flex:1;min-width:240px">
+        <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px">
+          <span class="muted">已叫 <b style="color:var(--ink)">$${fmt(matUsed)}</b></span>
+          <span class="muted">本月物料預算 <b style="color:var(--ink)">$${fmt(budget)}</b></span></div>
+        <div class="gauge" style="height:14px;margin-top:0"><i style="width:${usedPct}%;background:${col}"></i></div>
+        <div class="muted" style="font-size:11.5px;margin-top:7px">已用 ${usedPct.toFixed(0)}% 的預算</div></div>
+    </div>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px;font-size:12.5px" class="muted">
+      預估整月營收 <b style="color:var(--ink)">$${fmt(proj)}</b>${manual?'（手動設定）':''}（目前實績 $${fmt(actual)}）　×　目標物料比 <b style="color:var(--ink)">${TARGET}%</b>
+      　=　可用物料 <b style="color:var(--ink)">$${fmt(budget)}</b>
+      ${over?`<div style="color:var(--red);font-weight:700;margin-top:6px">⚠️ 已超出預算 $${fmt(-remain)}，再叫貨物料佔比會更高</div>`
+            :usedPct>85?`<div style="color:var(--warn);font-weight:700;margin-top:6px">⚠️ 預算只剩 ${(100-usedPct).toFixed(0)}%，叫貨請留意</div>`:''}
+    </div></div>`;
+}
+// 月增減：mode up-bad（成本，漲=紅）/ up-good（營收，漲=綠）
+function momChip(cur,prev,label,mode,big){
+  if(!prev){return `<span class="muted" style="font-size:${big?12:11.5}px">${cur?label+'無資料':'—'}</span>`;}
+  const d=(cur-prev)/prev*100;
+  const up=d>0.05,down=d<-0.05;
+  const good=(mode==='up-good')?up:down;
+  const col=(!up&&!down)?'var(--muted)':(good?'var(--green)':'var(--red)');
+  const arrow=up?'▲':down?'▼':'—';
+  const cls=big?'':'pill';
+  const bg=big?'':(!up&&!down?'background:#F2EEE7;color:var(--muted)':good?'background:var(--green-soft);color:var(--green)':'background:var(--red-soft);color:var(--red)');
+  return `<span class="${cls}" style="${bg};${big?'color:'+ (mode==='up-good'&&big?'rgba(255,255,255,.95)':col)+';font-weight:700;font-size:12.5px':''}">${arrow} ${Math.abs(d).toFixed(1)}%</span>${big?`<span class="muted" style="font-size:11.5px"> vs ${label} $${fmt(prev)}</span>`:''}`;
+}
+// 佔比用「百分點」比較
+function ppDelta(cur,prev,label){
+  if(cur==null||prev==null)return `<span class="muted">${label}無資料</span>`;
+  const d=cur-prev;const up=d>0.05,down=d<-0.05;
+  const col=(!up&&!down)?'var(--muted)':(down?'var(--green)':'var(--red)');
+  return `<span style="color:${col};font-weight:700">${up?'▲':down?'▼':'—'} ${Math.abs(d).toFixed(1)} 個百分點</span><span class="muted"> vs ${label} ${prev.toFixed(1)}%</span>`;
+}
+function health(pct){if(pct==null)return{cls:'',color:'var(--muted)',icon:'',label:'尚無資料'};
+  if(pct<=TARGET)return{cls:'good',color:'var(--green)',icon:'●',label:'健康'};
+  if(pct<=TARGET+8)return{cls:'warn',color:'var(--amber)',icon:'▲',label:'偏高，注意'};
+  return{cls:'bad',color:'var(--red)',icon:'■',label:'過高，需檢討'};}
+
+/* ====== 貨款結算 ====== */
+function ordersInWindow(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=win.start&&o.date<=win.end);}
+function vPayment(){
+  const sec=(t,title,bg)=>{
+    const win=monthWindow(selMonth,t);let sub=0;
+    const body=suppliers.filter(s=>s.type===t).map(s=>{
+      const gross=grossMaterial(s.name,win),ret=returnsWin(s.name,win),man=manualMaterial(s.name);
+      const net=gross-ret,vat=taxOf(s.name,net),tot=net+vat+man;sub+=tot;
+      const ords=ordersInWindow(s.name,win),rl=returns.filter(r=>r.store===selStore&&r.supplier===s.name&&r.date>=win.start&&r.date<=win.end);
+      return `<tr style="cursor:pointer" onclick="openSupDetail('${esc(s.name)}')"><td><b>${esc(s.name)}</b>
+          <div class="muted" style="font-size:11.5px;margin-top:2px">${ords.length?ords.length+' 張叫貨單':'無叫貨單'}${rl.length?'　·　'+rl.length+' 張退貨／折讓單':''}${vat?'　·　未稅報價，另加營業稅 $'+fmt(vat):''}${man?'　·　含手動調整 $'+fmt(man):''}</div></td>
+        <td class="muted" style="font-size:12px">${mmdd(win.start)}–${mmdd(win.end)}</td>
+        <td class="right"><span class="mlab">叫貨單金額</span>${gross?'$'+fmt(gross):'<span class="muted">—</span>'}</td>
+        <td class="right">${ret?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(ret)}</b>`:''}</td>
+        <td class="right"><span class="mlab">應付合計</span><b style="font-size:15px">$${fmt(tot)}</b></td>
+        <td class="right"><button class="btn grey mini" onclick="event.stopPropagation();openSupDetail('${esc(s.name)}')">每日明細 ›</button></td></tr>`;}).join('');
+    return `<div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:16px 20px;font-weight:700;background:${bg};display:flex;justify-content:space-between"><span>${title}</span><span>小計 $${fmt(sub)}</span></div>
+      <table><thead><tr><th>廠商</th><th>結算區間</th><th class="right">叫貨單金額</th><th class="right">退貨／折讓</th><th class="right">應付合計</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
+  };
+  const revfld=fb.status==='ok'?'':`<div class="card"><div style="font-weight:700;margin-bottom:10px">本月營業額</div>
+    <div style="max-width:260px"><label class="muted" style="font-size:12.5px">連不到打卡系統時手動填</label><input type="number" id="mRev" value="${manualRevTotal()||''}" placeholder="輸入本月營業額"></div></div>`;
+  return `<div class="crumb">首頁 / 付款</div><h1>貨款結算</h1>
+  <div class="card"><div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
+    <div class="field" style="max-width:180px"><label>結算月份</label><select id="mMonth">${monthOptions(selMonth)}</select></div>
+    <div class="muted" style="padding-bottom:10px">門市：<b style="color:var(--ink)">${esc(curStoreName())}</b>｜點任一廠商可看<b style="color:var(--ink)">每日明細</b>並修改單日金額。</div>
+    <div style="padding-bottom:6px;margin-left:auto"><button class="btn line" onclick="go('returns')">↩︎ 退貨／折讓登錄</button></div></div></div>
+  ${sec('月結','月結廠商（匯款 · 結算 26～次月25）','var(--blue-soft)')}
+  ${sec('現金','現金廠商（付現 · 結算 1～月底）','var(--cash)')}
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;background:#fff8ec">
+    <b style="font-size:16px">本期應付貨款總額</b><b style="font-size:22px;color:var(--orange-d)">$${fmt(totalMaterial())}</b></div>
+  ${revfld}
+  <div style="text-align:right"><button class="btn" onclick="savePayment()">儲存</button></div>`;
+}
+/* ====== 廠商每日明細 ====== */
+let detailSup=null;
+function openSupDetail(name){detailSup=name;go('supdetail');}
+function vSupDetail(){
+  const s=detailSup;if(!s)return `<div class="card"><div class="empty">請先從「貨款結算」選擇廠商。</div></div>`;
+  const t=supType(s),win=monthWindow(selMonth,t);
+  let auto=0,man=0,retSum=0;
+  const body=datesBetween(win.start,win.end).map(d=>{
+    const ords=orders.filter(o=>o.store===selStore&&o.supplier===s&&o.status!=='已作廢'&&o.date===d);
+    const rts=returnsOn(s,d);
+    const a=ords.reduce((x,o)=>x+orderTotal(o),0),m=manualOn(s,d),r=rts.reduce((x,v)=>x+retTotal(v),0);
+    auto+=a;man+=m;retSum+=r;
+    const wk=weekday(d),we=(wk==='六'||wk==='日');
+    return `<tr${(a||m||r)?'':' style="opacity:.55"'}><td><b>${mmdd(d)}</b> <span class="muted">(${wk})</span>${we?'':''}
+        ${ords.map(o=>`<div class="muted" style="font-size:11.5px">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　${o.status==='已驗收'?'✓已收':'待收'}</div>`).join('')}
+        ${rts.map(v=>`<div style="font-size:11.5px;color:var(--red);cursor:pointer" onclick="event.stopPropagation();openReturn('${v.id}')">↩︎ ${esc(v.kind)}單 ${esc(v.docNo||v.id)}　${(v.items||[]).map(i=>esc(i.name)+' ×'+i.qty).join('、')}　－$${fmt(retTotal(v))}</div>`).join('')}</td>
+      <td class="right"><span class="mlab">叫貨</span>${a?'$'+fmt(a):'<span class="muted">—</span>'}</td>
+      <td class="right">${r?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(r)}</b>`:''}</td>
+      <td class="right"><span class="mlab">手動調整</span><input style="width:120px;text-align:right;display:inline-block" type="number" value="${m||''}" placeholder="0" data-day="${d}"></td>
+      <td class="right">${(a+m-r)?`<span class="mlab">當日合計</span><b${(a+m-r)<0?' style="color:var(--red)"':''}>${(a+m-r)<0?'－$'+fmt(-(a+m-r)):'$'+fmt(a+m-r)}</b>`:''}</td></tr>`;}).join('');
+  return `<div class="crumb"><span style="cursor:pointer" onclick="go('payment')">貨款結算</span> / 每日明細</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <h1 style="margin-bottom:0">${esc(s)} <span class="pill ${t==='月結'?'m':'c'}" style="vertical-align:middle">${t}</span></h1>
+    <button class="btn line" onclick="go('payment')">‹ 返回貨款結算</button></div>
+  <div class="card" style="padding:14px 20px;margin-bottom:14px">
+    <div style="margin-bottom:5px">結算區間　<b>${win.start} ～ ${win.end}</b>　·　${esc(curStoreName())}</div>
+    <div class="muted" style="font-size:12.5px;line-height:1.7">叫貨單金額自動帶入。<b>退貨／折讓</b>欄是你登錄的退貨單，會自動扣掉（點紅字可編輯）。廠商漏送、少送或金額有零星出入時，在「手動調整」填當日要增減的金額（可填負數扣除）。</div></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table><thead><tr><th>日期 / 叫貨單</th><th class="right">叫貨單金額</th><th class="right">退貨／折讓</th><th class="right">手動調整</th><th class="right">當日合計</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr style="background:#FCFAF6"><td><b>本期合計</b></td><td class="right"><b>$${fmt(auto)}</b></td>
+      <td class="right"><b style="color:var(--red)">${retSum?'－$'+fmt(retSum):'—'}</b></td><td class="right"><b>$${fmt(man)}</b></td>
+      <td class="right"><b style="font-size:17px;color:var(--green)">$${fmt(auto+man-retSum)}</b></td></tr></tfoot></table></div>
+  <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><button class="btn line" onclick="newReturn('${esc(s)}')">↩︎ 登錄這家的退貨／折讓單</button><button class="btn" onclick="saveSupDetail()">儲存每日明細</button></div>`;
+}
+function saveSupDetail(){
+  document.querySelectorAll('[data-day]').forEach(i=>{const k=`${selStore}|${detailSup}|${i.dataset.day}`;const v=parseInt(i.value)||0;
+    if(v!==0)matManual[k]=v;else delete matManual[k];});
+  persist();toast('已儲存 ✓');render();}
+function savePayment(){
+  const mr=document.getElementById('mRev');if(mr){const v=parseInt(mr.value)||0;if(v>0)manualRev[`${selStore}|${selMonth}`]=v;else delete manualRev[`${selStore}|${selMonth}`];store.set('p_manualrev',JSON.stringify(manualRev));}
+  persist();toast('已儲存 ✓');render();
+}
+
+
+/* ====== 退貨／折讓單 ====== */
+let rDraft=null;
+function newReturn(sup){
+  rDraft={id:'',kind:'退貨',supplier:sup||(suppliers[0]||{}).name||'',date:isoAt(0),docNo:'',refNo:'',note:'',items:[],override:''};
+  openReturnModal();}
+function openReturn(id){const r=returns.find(x=>x.id===id);if(!r)return;
+  rDraft=JSON.parse(JSON.stringify(r));if(rDraft.override==null)rDraft.override='';openReturnModal();}
+function rSyncTop(){
+  const g=i=>{const e=document.getElementById(i);return e?e.value:undefined;};
+  const k=g('rKind'); if(k!==undefined)rDraft.kind=k;
+  const sp=g('rSup'); if(sp!==undefined)rDraft.supplier=sp;
+  const d=g('rDate'); if(d!==undefined)rDraft.date=d;
+  const dn=g('rDoc'); if(dn!==undefined)rDraft.docNo=dn;
+  const rf=g('rRef'); if(rf!==undefined)rDraft.refNo=rf;
+  const nt=g('rNote');if(nt!==undefined)rDraft.note=nt;
+  const ov=g('rOver');if(ov!==undefined)rDraft.override=ov;
+  document.querySelectorAll('[data-ri]').forEach(el=>{
+    const i=+el.dataset.ri,f=el.dataset.rf,it=rDraft.items[i];if(!it)return;
+    if(f==='name')it.name=el.value;
+    else if(f==='unit')it.unit=el.value;
+    else it[f]=el.value===''?'':Number(el.value);
+    if(f==='qty'||f==='price')it.amount=Math.round(((Number(it.qty)||0)*(Number(it.price)||0))*100)/100;
+  });}
+function rAddItem(){rSyncTop();rDraft.items.push({pid:'',name:'',unit:'',qty:1,price:0,amount:0});openReturnModal();}
+function rDelItem(i){rSyncTop();rDraft.items.splice(i,1);openReturnModal();}
+function rPickProduct(i,pid){rSyncTop();const p=products.find(x=>x.id===pid);
+  const it=rDraft.items[i];if(!it)return;
+  if(p){it.pid=p.id;it.name=p.name;it.unit=p.unit||'';const pr=priceFor(p,rDraft.date);it.price=(pr==null?0:pr);
+    it.amount=Math.round(((Number(it.qty)||0)*(Number(it.price)||0))*100)/100;}
+  else{it.pid='';}
+  openReturnModal();}
+function rChangeSup(){rSyncTop();openReturnModal();}
+// 從某張叫貨單開退貨單（帶入廠商，品項自己挑要退的）
+function returnFromOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  rDraft={id:'',kind:'退貨',supplier:o.supplier,date:isoAt(0),docNo:'',refNo:o.no,note:'',items:[],override:''};
+  openReturnModal();}
+function rSum(){return rDraft.items.reduce((s,i)=>s+(Number(i.amount)||0),0);}
+function openReturnModal(){
+  const sup=rDraft.supplier;
+  const list=products.filter(p=>p.supplier===sup);
+  const opts=(sel)=>`<option value="">— 自訂品名 —</option>`+list.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
+  const rows=rDraft.items.map((it,i)=>`<tr>
+      <td data-l="品項" style="min-width:200px">
+        <select onchange="rPickProduct(${i},this.value)" style="margin-bottom:5px">${opts(it.pid)}</select>
+        <input data-ri="${i}" data-rf="name" value="${esc(it.name||'')}" placeholder="品名（可直接照退貨單打）">
+      </td>
+      <td data-l="單位"><input data-ri="${i}" data-rf="unit" value="${esc(it.unit||'')}" placeholder="箱" style="width:70px"></td>
+      <td data-l="數量"><input data-ri="${i}" data-rf="qty" type="number" step="any" value="${it.qty}" style="width:80px;text-align:right" oninput="rRecalc(${i})"></td>
+      <td data-l="單價"><input data-ri="${i}" data-rf="price" type="number" step="any" value="${it.price}" style="width:100px;text-align:right" oninput="rRecalc(${i})"></td>
+      <td data-l="金額"><input data-ri="${i}" data-rf="amount" type="number" step="any" value="${it.amount}" style="width:110px;text-align:right"></td>
+      <td class="right" style="width:44px"><button class="btn grey mini" style="padding:7px 11px" title="移除這一項" onclick="rDelItem(${i})">✕</button></td></tr>`).join('');
+  const sum=rSum();
+  openModal(`<h3>${rDraft.id?'編輯':'登錄'}退貨／折讓單</h3>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="fld" style="flex:0 0 130px"><label>單據類型</label><select id="rKind">
+      <option value="退貨" ${rDraft.kind==='退貨'?'selected':''}>退貨單</option>
+      <option value="折讓" ${rDraft.kind==='折讓'?'selected':''}>折讓單</option></select></div>
+    <div class="fld" style="flex:1 1 220px"><label>廠商</label><select id="rSup" onchange="rChangeSup()">
+      ${suppliers.map(x=>`<option value="${esc(x.name)}" ${x.name===sup?'selected':''}>${esc(x.name)}（${x.type}）</option>`).join('')}</select></div>
+    <div class="fld" style="flex:0 0 165px"><label>銷退日期</label><input id="rDate" type="date" value="${rDraft.date}" onchange="rChangeSup()"></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="fld" style="flex:1 1 180px"><label>銷退單號</label><input id="rDoc" value="${esc(rDraft.docNo||'')}" placeholder="例：20260529010"></div>
+    <div class="fld" style="flex:1 1 180px"><label>前置單據（原銷貨單）</label><input id="rRef" value="${esc(rDraft.refNo||'')}" placeholder="例：銷貨單267110"></div>
+  </div>
+  <div class="fld"><label>退貨品項</label>
+    <div style="overflow:auto;border:1px solid var(--line);border-radius:12px">
+    <table class="keepcols" style="min-width:600px;width:100%"><thead><tr><th>品項</th><th>單位</th><th class="right">數量</th><th class="right">單價</th><th class="right">金額</th><th style="width:44px"></th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="6" class="muted" style="padding:14px">還沒有品項，按下面「＋ 加一項」。</td></tr>'}</tbody></table></div>
+    <div style="margin-top:8px"><button class="btn line mini" onclick="rAddItem()">＋ 加一項</button></div></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <div class="fld" style="flex:1 1 200px"><label>品項加總</label><div style="font-size:19px;font-weight:800;padding:8px 0">$${fmt(sum)}</div></div>
+    <div class="fld" style="flex:1 1 200px"><label>金額總計（跟退貨單不一樣時填這裡）</label>
+      <input id="rOver" type="number" step="any" value="${rDraft.override===''||rDraft.override==null?'':rDraft.override}" placeholder="留空＝用品項加總 $${fmt(sum)}"></div>
+  </div>
+  <div class="fld"><label>備註</label><input id="rNote" value="${esc(rDraft.note||'')}" placeholder="例：品質不良、送錯品項、叫錯"></div>
+  <div class="muted" style="font-size:11.5px;line-height:1.65">這張單會<b>直接從該廠商本期應付貨款扣掉</b>，原本的叫貨單不會被更動。歸屬區間依<b>銷退日期</b>判斷。</div>
+  <div class="modact">${rDraft.id?`<button class="btn grey mini" onclick="delReturn('${rDraft.id}')" style="margin-right:auto">刪除這張單</button>`:''}
+    <button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveReturn()">儲存</button></div>`,true);}
+function rRecalc(i){const q=document.querySelector(`[data-ri="${i}"][data-rf="qty"]`),pr=document.querySelector(`[data-ri="${i}"][data-rf="price"]`),am=document.querySelector(`[data-ri="${i}"][data-rf="amount"]`);
+  if(q&&pr&&am)am.value=Math.round(((Number(q.value)||0)*(Number(pr.value)||0))*100)/100;}
+function saveReturn(){
+  rSyncTop();
+  if(!rDraft.supplier){alert('請選廠商');return;}
+  if(!rDraft.date){alert('請填銷退日期');return;}
+  rDraft.items=rDraft.items.filter(i=>(i.name||'').trim()!=='');
+  const tot=rDraft.override!==''&&rDraft.override!=null?Number(rDraft.override):rSum();
+  if(!(tot>0)){alert('金額要大於 0。請填品項金額，或直接在「金額總計」填退貨單上的總金額。');return;}
+  rDraft.store=selStore;
+  if(!rDraft.id){rDraft.id='R'+String(Date.now()).slice(-8);rDraft.createdAt=isoAt(0);returns.push(rDraft);}
+  else{const i=returns.findIndex(x=>x.id===rDraft.id);if(i>=0)returns[i]=rDraft;}
+  cloudSaveReturn(rDraft);persist();hideModal();toast('退貨／折讓單已儲存 ✓');render();}
+function delReturn(id){if(!confirm('確定刪除這張退貨／折讓單？貨款會加回去。'))return;
+  const i=returns.findIndex(x=>x.id===id);if(i>=0)returns.splice(i,1);
+  cloudDelReturn(id);persist();hideModal();toast('已刪除');render();}
+let rFilter='all';
+function vReturns(){
+  const all=returns.filter(r=>r.store===selStore).slice().sort((a,b)=>b.date<a.date?-1:1);
+  const list=rFilter==='all'?all:all.filter(r=>r.date.startsWith(rFilter));
+  const months=[...new Set(all.map(r=>r.date.slice(0,7)))].sort().reverse();
+  const rowsHtml=list.map(r=>{const t=supType(r.supplier),w=monthWindow(selMonth,t);
+    const inCur=r.date>=w.start&&r.date<=w.end;
+    return `<tr style="cursor:pointer" onclick="openReturn('${r.id}')">
+      <td><b>${mmdd(r.date)}</b> <span class="muted">${r.date.slice(0,4)}</span>
+        <div class="muted" style="font-size:11.5px">${esc(r.docNo||r.id)}${r.refNo?'　·　前置 '+esc(r.refNo):''}</div></td>
+      <td><b>${esc(r.supplier)}</b> <span class="pill ${t==='月結'?'m':'c'}">${t}</span>
+        <div class="muted" style="font-size:11.5px">${(r.items||[]).map(i=>esc(i.name)+' ×'+i.qty+(i.unit||'')).join('、')||'—'}${r.note?'　·　'+esc(r.note):''}</div></td>
+      <td><span class="pill ${r.kind==='退貨'?'c':'m'}">${esc(r.kind)}單</span></td>
+      <td class="right"><b style="color:var(--red);font-size:15px">－$${fmt(retTotal(r))}</b>
+        <div class="muted" style="font-size:11px">${inCur?'已計入 '+selMonth+' 結算':'不在 '+selMonth+' 區間'}</div></td>
+      <td class="right"><button class="btn grey mini" onclick="event.stopPropagation();openReturn('${r.id}')">編輯</button></td></tr>`;}).join('');
+  const total=list.reduce((s,r)=>s+retTotal(r),0);
+  return `<div class="crumb">首頁 / 付款</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <h1 style="margin-bottom:0">退貨／折讓</h1><button class="btn" onclick="newReturn()">＋ 登錄退貨單</button></div>
+  <div class="muted" style="margin:8px 0 16px;line-height:1.7">拿到廠商開的<b>退貨單／折讓單</b>後補登在這裡。原本的叫貨單不用改，這張單會依<b>銷退日期</b>落到對應的結算區間，直接從該廠商應付貨款扣掉。</div>
+  <div class="card" style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
+    <div class="field" style="max-width:180px"><label>月份篩選</label>
+      <select onchange="rFilter=this.value;render()"><option value="all" ${rFilter==='all'?'selected':''}>全部</option>
+      ${months.map(m=>`<option value="${m}" ${rFilter===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="muted" style="padding-bottom:10px">${list.length} 張單　·　合計扣款 <b style="color:var(--red)">$${fmt(total)}</b></div></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table><thead><tr><th>銷退日期 / 單號</th><th>廠商 / 品項</th><th>類型</th><th class="right">扣款金額</th><th></th></tr></thead>
+    <tbody>${rowsHtml||'<tr><td colspan="5"><div class="empty">還沒有退貨／折讓紀錄。<br><span class="muted" style="font-size:12.5px">拿到廠商的退貨單時按右上角「＋ 登錄退貨單」。</span></div></td></tr>'}</tbody></table></div>`;
+}
+
+/* ====== 廠商管理 ====== */
+function vSuppliers(){
+  const seg=(t,title,bg)=>{const list=suppliers.map((s,i)=>({...s,i})).filter(s=>s.type===t);
+    return `<div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;background:${bg}">${title}（${list.length}）</div>
+    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#FDF0DC;color:#B9741C">未稅 ＋5%</span>`:''}</td>
+      <td class="right"><button class="btn grey mini" onclick="openSupplier(${s.i})">編輯</button></td></tr>`).join('')||'<tr><td class="muted" style="padding:16px">尚無廠商</td></tr>'}</tbody></table></div>`;};
+  return `<div class="crumb">首頁 / 產品</div>
+  <div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin-bottom:0">廠商管理</h1><button class="btn" onclick="openSupplier(-1)">＋ 新增廠商</button></div>
+  <div class="muted" style="margin:8px 0 16px">月結廠商用匯款（結算 26～次月25）；現金廠商付現（結算 1～月底）。新增後會出現在商品、採購、貨款結算。</div>
+  ${seg('月結','月結廠商（匯款）','var(--blue-soft)')}
+  ${seg('現金','現金廠商（付現）','var(--cash)')}`;
+}
+function openSupplier(i){const s=i>=0?suppliers[i]:{name:'',type:'月結',pricing:'固定',tax:'含稅'};const pc=s.pricing||'固定';
+  openModal(`<h3>${i>=0?'編輯廠商':'新增廠商'}</h3>
+    <div class="fld"><label>廠商名稱</label><input id="sName" value="${esc(s.name)}" placeholder="例：新鮮蔬果行"></div>
+    <div class="fld"><label>結算方式</label><select id="sType"><option value="月結" ${s.type==='月結'?'selected':''}>月結（匯款，26～次月25）</option><option value="現金" ${s.type==='現金'?'selected':''}>現金（付現，1～月底）</option></select></div>
+    <div class="fld"><label>報價稅別</label><select id="sTax">
+      <option value="含稅" ${(s.tax||'含稅')==='含稅'?'selected':''}>含稅價（單價已含 5% 營業稅）</option>
+      <option value="未稅" ${s.tax==='未稅'?'selected':''}>未稅價（結算時另加 5% 營業稅）</option></select>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">看廠商的貨單／發票：如果單價乘數量＝總計，就是<b>含稅</b>；如果下面另外列「稅額 5%」再加上去，就選<b>未稅</b>。選錯會讓貨款差 5%。</div></div>
+    <div class="fld"><label>計價方式</label><select id="sPricing">
+      <option value="固定" ${pc==='固定'?'selected':''}>固定價（單價不常變動）</option>
+      <option value="週報" ${pc==='週報'?'selected':''}>時價 · 每週報價（每週二給新價目表）</option>
+      <option value="隨貨" ${pc==='隨貨'?'selected':''}>時價 · 隨貨計價（收貨當天才知道價）</option></select>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">「每週報價」→ 到「本週菜價」登錄，叫貨自動套用當週價。<br>「隨貨計價」→ 叫貨只記數量，收貨確認時填實際單價。</div></div>
+    <div class="modact">${i>=0?`<button class="btn grey mini" onclick="delSupplier(${i})" style="margin-right:auto">刪除</button>`:''}<button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveSupplier(${i})">儲存</button></div>`);}
+function saveSupplier(i){const name=document.getElementById('sName').value.trim();const type=document.getElementById('sType').value;
+  const pricing=document.getElementById('sPricing').value;
+  const tax=document.getElementById('sTax').value;
+  if(!name){toast('請輸入廠商名稱');return;}
+  if(suppliers.some((x,j)=>x.name===name&&j!==i)){toast('已有同名廠商');return;}
+  if(i>=0)suppliers[i]={name,type,pricing,tax};else suppliers.push({name,type,pricing,tax});
+  persist();hideModal();toast('已儲存 ✓');render();}
+/* ====== 本週菜價（時價 · 每週報價） ====== */
+let wkSup=null,wkWeek=null;
+function weekOptions(sel){const cur=weekStartTue(isoAt(0));const arr=[];
+  for(let i=6;i>=-1;i--){const d=new Date(cur+'T00:00:00');d.setDate(d.getDate()-i*7);arr.push(isoOf(d));}
+  if(sel&&!arr.includes(sel))arr.push(sel);
+  return arr.reverse().map(w=>`<option value="${w}" ${w===sel?'selected':''}>${mmdd(w)}（三）～ ${mmdd(weekEndOf(w))}${w===cur?'　· 本週':''}</option>`).join('');}
+function vWeekly(){
+  const spot=suppliers.filter(s=>(s.pricing||'')==='週報');
+  if(!spot.length)return `<div class="crumb">首頁 / 日常叫貨</div><h1>本週菜價</h1>
+    <div class="card"><div class="empty">目前沒有「每週報價」的廠商。<br>到「廠商管理」把該廠商的計價方式改成「時價 · 每週報價」。</div></div>`;
+  if(!wkSup||!spot.find(s=>s.name===wkSup))wkSup=spot[0].name;
+  if(!wkWeek)wkWeek=weekStartTue(isoAt(0));
+  const prevW=isoOf((d=>{d.setDate(d.getDate()-7);return d;})(new Date(wkWeek+'T00:00:00')));
+  const prods=products.filter(p=>p.supplier===wkSup);
+  let filled=0;
+  const body=prods.map(p=>{const cur=weeklyPrice(wkSup,wkWeek,p.id),prev=weeklyPrice(wkSup,prevW,p.id);
+    if(cur!=null)filled++;
+    const diff=(cur!=null&&prev!=null)?cur-prev:null;
+    return `<tr><td><b>${esc(p.name)}</b> ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</td>
+      <td class="right muted">${prev!=null?'$'+fmt(prev):'—'}</td>
+      <td class="right"><input style="width:120px;text-align:right;display:inline-block" type="number" value="${cur!=null?cur:''}" placeholder="輸入單價" data-wk="${p.id}"></td>
+      <td class="right muted">/ ${esc(p.unit)}</td>
+      <td class="right">${diff==null?'':(diff>0?`<span style="color:var(--red)">▲ $${fmt(diff)}</span>`:diff<0?`<span style="color:var(--green)">▼ $${fmt(-diff)}</span>`:'<span class="muted">持平</span>')}</td></tr>`;}).join('');
+  return `<div class="crumb">首頁 / 日常叫貨</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin-bottom:0">本週菜價</h1>
+    <button class="btn" onclick="openImport()">📤 上傳價目表</button></div>
+  <div class="muted" style="margin:8px 0 14px">時價廠商每週二給新價目表（週期為週三～次週二），登錄後這一週叫貨都會自動套用。廠商傳 Excel／CSV 可直接上傳，不用手打。</div>
+  <div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap">
+    <div class="field" style="min-width:200px"><label>廠商</label><select id="wkSupSel">${spot.map(s=>`<option ${wkSup===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+    <div class="field" style="min-width:250px"><label>價目表週期（週三～週二）</label><select id="wkWeekSel">${weekOptions(wkWeek)}</select></div></div></div>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:16px 20px;font-weight:700;background:var(--green-tint);display:flex;justify-content:space-between">
+      <span>${esc(wkSup)}　${mmdd(wkWeek)}～${mmdd(weekEndOf(wkWeek))}</span><span class="muted" style="font-weight:400">已報價 ${filled} / ${prods.length} 項</span></div>
+    ${prods.length?`<table><thead><tr><th>商品</th><th class="right">上週價</th><th class="right">本週單價</th><th class="right">單位</th><th class="right">漲跌</th></tr></thead><tbody>${body}</tbody></table>`
+    :`<div class="empty">這家廠商還沒有商品，請先到「商品與價格」新增。</div>`}</div>
+  ${prods.length?`<div style="text-align:right"><button class="btn" onclick="saveWeekly()">儲存本週菜價</button></div>`:''}`;
+}
+/* ---- 價目表匯入（Excel / CSV / 貼上） ---- */
+let importRows=[];
+function openImport(){
+  openModal(`<h3>上傳 ${esc(wkSup)} 價目表</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">套用週次：<b style="color:var(--ink)">${mmdd(wkWeek)}～${mmdd(weekEndOf(wkWeek))}</b><br>
+      支援 Excel（.xlsx/.xls）與 CSV。系統會自動找「品名」和「價格」欄位。</div>
+    <div class="fld"><label>選擇檔案</label>
+      <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.txt" onchange="onImportFile(this)" style="padding:9px"></div>
+    <div class="muted" style="text-align:center;font-size:12px;margin:12px 0">— 或 直接貼上（從 Excel 複製整塊貼進來也行）—</div>
+    <div class="fld"><textarea id="impText" rows="5" placeholder="青江菜　45&#10;小黃瓜　60&#10;高麗菜　38" style="font-family:inherit;font-size:14px;padding:11px 14px;border:1.5px solid transparent;border-radius:12px;width:100%;background:#FAF7F2;resize:vertical"></textarea></div>
+    <div class="modact"><button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="parsePasted()">讀取內容</button></div>`);}
+function splitRows(text){return text.split(/\r?\n/).filter(l=>l.trim()!=='').map(line=>{
+  if(line.includes('\t'))return line.split('\t').map(s=>s.trim());
+  if(line.includes(','))
+    {const cells=[];let cur='',q=false;
+     for(let i=0;i<line.length;i++){const c=line[i];
+       if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}
+       else if(c===','&&!q){cells.push(cur);cur='';}else cur+=c;}
+     cells.push(cur);return cells.map(s=>s.trim());}
+  return line.trim().split(/\s{1,}|　+/).map(s=>s.trim());});}
+// 民國日期區間，例：115.08/12-115.08/18
+function rocRange(text){const m=String(text).match(/(\d{2,3})[.\/](\d{1,2})[\/.](\d{1,2})\s*[-~～至]\s*(?:(\d{2,3})[.\/])?(\d{1,2})[\/.](\d{1,2})/);
+  if(!m)return null;const y1=+m[1]+1911,y2=(m[4]?+m[4]:+m[1])+1911;
+  return {start:`${y1}-${pad2(+m[2])}-${pad2(+m[3])}`,end:`${y2}-${pad2(+m[5])}-${pad2(+m[6])}`};}
+// 解析報價單：支援同頁多個「項次/品名/單位/單價」欄區並排
+function parseSheet(rows){
+  let period=null;
+  for(let r=0;r<Math.min(rows.length,8)&&!period;r++)
+    for(const c of (rows[r]||[])){const p=rocRange(c);if(p){period=p;break;}}
+  const groups=[],headerRows=new Set();
+  rows.forEach((row,r)=>{let isH=false;
+    (row||[]).forEach((cell,c)=>{
+      if(!/^\s*(品名|名稱|商品|品項|菜名)\s*$/.test(String(cell)))return;
+      isH=true;let u=-1,p=-1,note=-1;
+      for(let k=c+1;k<=c+3&&k<row.length;k++){const h=String(row[k]);
+        if(u<0&&/單位|規格/.test(h))u=k;
+        if(p<0&&/單價|價格|售價|報價/.test(h))p=k;}
+      if(p<0)return;
+      if(p+1<row.length&&String(row[p+1]||'').trim()==='')note=p+1;
+      if(!groups.some(g=>g.n===c))groups.push({n:c,u,p,note});});
+    if(isH)headerRows.add(r);});
+  if(!groups.length)return null;
+  const items=[];let zero=0;
+  rows.forEach((row,r)=>{if(headerRows.has(r)||!row)return;
+    groups.forEach(g=>{
+      let name=String(row[g.n]==null?'':row[g.n]).trim();
+      if(!name||/品名|名稱|合計|總計|報價單/.test(name))return;
+      const nt=g.note>=0?String(row[g.note]==null?'':row[g.note]).trim():'';
+      if(nt&&isNaN(parseFloat(nt)))name+=' '+nt;
+      const unit=g.u>=0?String(row[g.u]==null?'':row[g.u]).trim():'';
+      const price=parseFloat(String(row[g.p]==null?'':row[g.p]).replace(/[^0-9.\-]/g,''));
+      if(isNaN(price))return;
+      if(price<=0){zero++;return;}
+      items.push({name,unit,price});});});
+  const seen={};const uniq=[];
+  items.forEach(it=>{const k=it.name+'|'+it.unit;if(seen[k])return;seen[k]=1;uniq.push(it);});
+  return {items:uniq,period,zero};}
+// 簡易格式（貼上文字）備援
+function rowsToItems(rows){
+  const r=parseSheet(rows);if(r&&r.items.length)return r;
+  let ni=-1,pi=-1,ui=-1,start=0;
+  for(let r2=0;r2<Math.min(rows.length,12);r2++){const c=(rows[r2]||[]).map(x=>String(x));
+    const a=c.findIndex(x=>/品名|名稱|商品|品項|貨品|菜名/.test(x));
+    const b=c.findIndex(x=>/單價|價格|金額|售價|報價|價$/.test(x));
+    if(a>=0&&b>=0){ni=a;pi=b;ui=c.findIndex(x=>/單位|規格/.test(x));start=r2+1;break;}}
+  if(ni<0){for(const row of rows){const a=row.findIndex(x=>x!==''&&isNaN(parseFloat(x)));
+      const b=row.findIndex((x,i)=>i!==a&&x!==''&&!isNaN(parseFloat(String(x).replace(/[^0-9.\-]/g,''))));
+      if(a>=0&&b>=0){ni=a;pi=b;start=0;break;}}}
+  if(ni<0)return{items:[],period:null,zero:0};
+  const out=[];let zero=0;
+  for(let r2=start;r2<rows.length;r2++){const row=rows[r2]||[];const nm=String(row[ni]==null?'':row[ni]).trim();
+    const pv=parseFloat(String(row[pi]==null?'':row[pi]).replace(/[^0-9.\-]/g,''));
+    if(!nm||isNaN(pv)||/品名|名稱|商品|合計|總計/.test(nm))continue;
+    if(pv<=0){zero++;continue;}
+    out.push({name:nm,price:pv,unit:ui>=0?String(row[ui]||'').trim():''});}
+  return{items:out,period:null,zero};}
+function decodeSmart(buf){let t=new TextDecoder('utf-8').decode(buf);
+  if(t.includes('�')){try{t=new TextDecoder('big5').decode(buf);}catch(e){}}return t;}
+function onImportFile(input){const f=input.files&&input.files[0];if(!f)return;
+  const ext=(f.name.split('.').pop()||'').toLowerCase();const r=new FileReader();
+  if(ext==='csv'||ext==='txt'){r.onload=e=>handleParsed(rowsToItems(splitRows(decodeSmart(e.target.result))));r.readAsArrayBuffer(f);}
+  else{if(!window.XLSX){toast('Excel 元件尚未載入，請改存成 CSV 上傳或用貼上');return;}
+    r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      handleParsed(rowsToItems(rows));}catch(err){toast('檔案讀取失敗，請改用 CSV');}};
+    r.readAsArrayBuffer(f);}}
+function parsePasted(){const t=(document.getElementById('impText')||{}).value||'';
+  if(!t.trim()){toast('請選擇檔案或貼上內容');return;}handleParsed(rowsToItems(splitRows(t)));}
+function normName(s){return String(s).replace(/[\s　]/g,'').replace(/[（(].*?[)）]/g,'');}
+function matchProduct(name,list){let m=list.find(p=>p.name===name);if(m)return m.id;
+  const n=normName(name);m=list.find(p=>normName(p.name)===n);if(m)return m.id;
+  m=list.find(p=>normName(p.name).includes(n)||n.includes(normName(p.name)));return m?m.id:'';}
+function handleParsed(res){
+  const items=res.items||[];
+  if(!items.length){toast('讀不到品名與價格，請確認檔案格式');return;}
+  // 檔案上有期間 → 自動切到該週期
+  let noteP='';
+  if(res.period){const ws=weekStartTue(res.period.start);
+    if(ws!==wkWeek){wkWeek=ws;noteP=`<div style="background:var(--green-soft);color:var(--green);padding:9px 13px;border-radius:10px;font-size:12.5px;margin-bottom:12px">
+      📅 偵測到報價單期間 <b>${res.period.start} ～ ${res.period.end}</b>，已自動套用到這個週期。</div>`;}}
+  importRows=items;const list=products.filter(p=>p.supplier===wkSup);
+  let matched=0,unitChg=0;
+  const body=items.map((it,i)=>{const pid=matchProduct(it.name,list);if(pid)matched++;
+    const cur=pid?list.find(p=>p.id===pid):null;
+    const uc=(cur&&it.unit&&cur.unit!==it.unit);if(uc)unitChg++;
+    return `<tr><td><b>${esc(it.name)}</b></td>
+      <td class="center">${it.unit?`<span class="spec">${esc(it.unit)}</span>`:'<span class="muted">—</span>'}
+        ${uc?`<div style="font-size:10.5px;color:var(--amber)">原 ${esc(cur.unit)} → 更新</div>`:''}</td>
+      <td class="right"><b>$${fmt(it.price)}</b></td>
+      <td><select data-imp="${i}" style="font-size:13px;padding:7px 9px">
+        ${list.map(p=>`<option value="${p.id}" ${pid===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
+        <option value="__new" ${pid?'':'selected'}>➕ 新增為商品</option>
+        <option value="__skip">✕ 略過</option></select></td></tr>`;}).join('');
+  openModal(`<h3>確認匯入（共 ${items.length} 筆）</h3>
+    ${noteP}
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.7">
+      自動對應 <b style="color:var(--green)">${matched}</b> 筆現有商品，其餘會新增為新商品${unitChg?`；<b style="color:var(--amber)">${unitChg}</b> 項單位有異動會一併更新`:''}。
+      ${res.zero?`<br>另有 <b>${res.zero}</b> 筆單價為 0（本週未報價），已自動略過。`:''}<br>
+      套用到 <b style="color:var(--ink)">${esc(wkSup)}　${mmdd(wkWeek)}～${mmdd(weekEndOf(wkWeek))}</b></div>
+    <div style="max-height:44vh;overflow:auto;border-radius:12px;background:#FAF7F2;padding:4px 10px">
+      <table style="font-size:13px"><thead><tr><th>檔案品名</th><th class="center">單位</th><th class="right">價格</th><th>對應到系統商品</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="modact"><button class="btn grey" onclick="openImport()">‹ 重選</button><button class="btn" onclick="applyImport()">確認匯入 ${items.length} 筆</button></div>`);}
+function applyImport(){let n=0,created=0,uch=0;
+  document.querySelectorAll('[data-imp]').forEach(sel=>{const it=importRows[+sel.dataset.imp];const v=sel.value;
+    if(v==='__skip')return;let pid=v;
+    if(v==='__new'){pid='x'+Date.now().toString(36)+'_'+sel.dataset.imp;
+      products.push({id:pid,name:it.name,spec:'',unit:it.unit||'份',supplier:wkSup,cat:'蔬果',price:0});created++;}
+    else if(it.unit){const pr=products.find(p=>p.id===pid);if(pr&&pr.unit!==it.unit){pr.unit=it.unit;uch++;}}
+    weekly[`${wkSup}|${wkWeek}|${pid}`]=it.price;n++;});
+  persist();hideModal();
+  toast(`已匯入 ${n} 筆${created?`・新增 ${created} 項`:''}${uch?`・更新 ${uch} 個單位`:''} ✓`);render();}
+function saveWeekly(){document.querySelectorAll('[data-wk]').forEach(i=>{const k=`${wkSup}|${wkWeek}|${i.dataset.wk}`;
+  const v=i.value.trim()===''?null:parseFloat(i.value);
+  if(v===null||isNaN(v))delete weekly[k];else weekly[k]=v;});
+  persist();toast('本週菜價已儲存 ✓');render();}
+function delSupplier(i){const nm=suppliers[i].name;
+  if(products.some(p=>p.supplier===nm)){toast('此廠商還有商品，請先移除那些商品');return;}
+  suppliers.splice(i,1);persist();hideModal();toast('已刪除');render();}
+/* ====== 商品新增/編輯 ====== */
+function openProduct(id){const p=id?products.find(x=>x.id===id):{name:'',spec:'',supplier:(suppliers[0]||{}).name||'',cat:'',unit:'',price:''};
+  openModal(`<h3>${id?'編輯商品':'新增商品'}</h3>
+    <div class="fld"><label>商品名稱</label><input id="pName" value="${esc(p.name||'')}" placeholder="例：去骨雞腿肉 2kg"></div>
+    <div class="grid2"><div class="fld"><label>規格（選填）</label><input id="pSpec" value="${esc(p.spec||'')}" placeholder="2kg/包"></div>
+      <div class="fld"><label>單位</label><input id="pUnit" value="${esc(p.unit||'')}" placeholder="包"></div></div>
+    <div class="fld"><label>供應商</label><select id="pSup" onchange="pTaxCalc()">${suppliers.map(s=>`<option value="${esc(s.name)}" ${p.supplier===s.name?'selected':''}>${esc(s.name)}${s.tax==='未稅'?'（未稅報價）':''}</option>`).join('')}</select></div>
+    <div class="grid2"><div class="fld"><label>類別（選填）</label><input id="pCat" value="${esc(p.cat||'')}" placeholder="肉品"></div>
+      <div class="fld"><label>單價</label><input id="pPrice" type="number" step="any" value="${p.price||''}" placeholder="0" oninput="pTaxCalc()"></div></div>
+    <div class="fld"><label>我填的這個單價是</label>
+      <div style="display:flex;gap:8px">
+        <label class="basisopt"><input type="radio" name="pBasis" value="含稅" ${supTax(p.supplier||(suppliers[0]||{}).name)==='含稅'?'checked':''} onchange="pTaxCalc()"> 含稅價</label>
+        <label class="basisopt"><input type="radio" name="pBasis" value="未稅" ${supTax(p.supplier||(suppliers[0]||{}).name)==='未稅'?'checked':''} onchange="pTaxCalc()"> 未稅價</label></div>
+      <div id="pTaxHint" style="margin-top:9px;padding:11px 13px;background:#FAF7F2;border-radius:11px;font-size:12.5px;line-height:1.75"></div></div>
+    <div class="modact">${id?`<button class="btn grey mini" onclick="delProduct('${id}')" style="margin-right:auto">刪除</button>`:''}<button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveProduct('${id||''}')">儲存</button></div>`);pTaxCalc();}
+// 單價含稅／未稅即時換算：不管廠商怎麼報，都幫你算好，不用自己按計算機
+function pBasisNow(){const r=document.querySelector('input[name="pBasis"]:checked');return r?r.value:'含稅';}
+function pSupNow(){const e=document.getElementById('pSup');return e?e.value:'';}
+function pStoredPrice(){const v=parseFloat((document.getElementById('pPrice')||{}).value)||0;
+  const b=pBasisNow(),sb=supTax(pSupNow());
+  if(b===sb)return Math.round(v*100)/100;
+  return b==='含稅'?toExcl(v):toIncl(v);}
+function pTaxCalc(){const h=document.getElementById('pTaxHint');if(!h)return;
+  const v=parseFloat((document.getElementById('pPrice')||{}).value)||0;
+  const b=pBasisNow(),sup=pSupNow(),sb=supTax(sup);
+  if(!v){h.innerHTML='<span class="muted">填入單價後，這裡會自動幫你換算未稅／含稅，不用自己按計算機。</span>';return;}
+  const incl=b==='含稅'?Math.round(v*100)/100:toIncl(v);
+  const excl=b==='含稅'?toExcl(v):Math.round(v*100)/100;
+  const stored=pStoredPrice();
+  h.innerHTML=`未稅 <b>$${fmt2(excl)}</b>　／　含稅 <b>$${fmt2(incl)}</b>（稅額 $${fmt2(Math.round((incl-excl)*100)/100)}）
+    <div style="margin-top:5px;color:var(--green)">${esc(sup)} 設定為 <b>${sb}報價</b> → 系統存 <b>$${fmt2(stored)}</b>${b===sb?'':'（已自動幫你換算）'}</div>`;}
+function saveProduct(id){const name=document.getElementById('pName').value.trim();const price=pStoredPrice();
+  if(!name){toast('請輸入商品名稱');return;}
+  const data={name,spec:document.getElementById('pSpec').value.trim(),unit:document.getElementById('pUnit').value.trim()||'件',supplier:pSupNow(),cat:document.getElementById('pCat').value.trim()||'未分類',price};
+  if(id){Object.assign(products.find(x=>x.id===id),data);}else{products.push({id:'x'+Date.now(),...data});}
+  persist();hideModal();toast('已儲存 ✓');render();}
+function delProduct(id){products=products.filter(p=>p.id!==id);persist();hideModal();toast('已刪除');render();}
+/* ====== 我的最愛 ====== */
+let favSup='';
+function isFav(pid){return !!favs[`${selStore}|${pid}`];}
+function toggleFav(pid){const k=`${selStore}|${pid}`;
+  if(favs[k]){delete favs[k];toast('已從最愛移除');}else{favs[k]=1;toast('已加入我的最愛 ⭐');}
+  persist();render();}
+function defQty(pid){return lastQty[`${selStore}|${pid}`]||1;}
+function stepFav(pid,d){const el=document.getElementById('fq_'+pid);if(!el)return;
+  el.value=Math.max(1,(parseInt(el.value)||1)+d);}
+function addFavToCart(pid){const el=document.getElementById('fq_'+pid);
+  const q=Math.max(1,parseInt(el&&el.value)||defQty(pid));cart[pid]=q;persist();badges();toast('已加入購物車 🛒');}
+function addAllFav(sup){let n=0;
+  products.filter(p=>p.supplier===sup&&isFav(p.id)).forEach(p=>{const el=document.getElementById('fq_'+p.id);
+    cart[p.id]=Math.max(1,parseInt(el&&el.value)||defQty(p.id));n++;});
+  persist();badges();toast(`已把 ${esc(sup)} 的 ${n} 項加入購物車 🛒`);}
+function vFav(){
+  const list=products.filter(p=>isFav(p.id));
+  if(!list.length)return `<div class="crumb">首頁 / 日常叫貨</div><h1>⭐ 我的最愛</h1>
+    <div class="card"><div class="empty">還沒有收藏任何商品。<br><br>
+      到「<b>選貨叫貨</b>」，在商品右邊點 <span class="star off">☆</span> 就會收進這裡，<br>常叫的貨以後不用再一直滑一直搜尋。
+      <div style="margin-top:18px"><button class="btn" onclick="go('products')">去選貨叫貨</button></div></div></div>`;
+  const bySup={};list.forEach(p=>{(bySup[p.supplier]=bySup[p.supplier]||[]).push(p);});
+  const names=suppliers.map(s=>s.name).filter(n=>bySup[n]);
+  if(favSup&&!bySup[favSup])favSup='';
+  const show=favSup?[favSup]:names;
+  return `<div class="crumb">首頁 / 日常叫貨</div><h1>⭐ 我的最愛</h1>
+  <div class="muted" style="margin-bottom:14px">常叫的貨都在這，依廠商分好。數量會帶出上次叫的量。</div>
+  <div class="card"><div class="chips">
+    <button class="chip ${favSup?'':'on'}" onclick="favSup='';render()">全部 <small>${list.length} 項</small></button>
+    ${names.map(n=>`<button class="chip ${favSup===n?'on':''}" onclick="favSup=${JSON.stringify(n).replace(/"/g,'&quot;')};render()">${esc(n)} <small>${bySup[n].length}</small></button>`).join('')}
+  </div></div>
+  ${show.map(n=>{const t=supType(n),pr=supPricing(n);
+    const spot=pr==='週報'?`<span class="pill c">時價 · 每週報價</span>`:pr==='隨貨'?`<span class="pill c">時價 · 收貨計價</span>`:'';
+    return `<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:15px 20px;background:var(--green-tint);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <b style="font-size:15.5px">${esc(n)}</b><span class="pill ${t==='月結'?'m':'c'}">${t}</span>${spot}
+      <span style="flex:1"></span><span class="muted" style="font-size:12.5px">${bySup[n].length} 項</span>
+      <button class="btn mini line" onclick="addAllFav(${JSON.stringify(n).replace(/"/g,'&quot;')})">全部加入購物車</button></div>
+    <table><tbody>${bySup[n].map(p=>`<tr>
+      <td><div class="pname"><span class="thumb">📦</span><div>${esc(p.name)} ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</div></div></td>
+      <td class="muted">${esc(p.cat)}</td>
+      <td class="right">${priceCell(p)}</td>
+      <td class="center"><span class="stepper"><button onclick="stepFav('${p.id}',-1)">−</button><input id="fq_${p.id}" value="${defQty(p.id)}"><button onclick="stepFav('${p.id}',1)">＋</button></span></td>
+      <td class="right"><button class="btn mini" onclick="addFavToCart('${p.id}')">加入 🛒</button></td>
+      <td class="right"><button class="star" title="從最愛移除" onclick="toggleFav('${p.id}')">★</button></td></tr>`).join('')}</tbody></table></div>`;}).join('')}`;
+}
+/* ====== 選貨叫貨 ====== */
+let f={name:'',sup:'',cat:''};
+function vProducts(){const sups=[...new Set(products.map(p=>p.supplier))],cats=[...new Set(products.map(p=>p.cat))];
+  const rows=products.filter(p=>(!f.name||p.name.includes(f.name))&&(!f.sup||p.supplier===f.sup)&&(!f.cat||p.cat===f.cat));
+  return `<div class="crumb">首頁 / 日常叫貨</div><h1>選貨叫貨</h1>
+  <div class="muted" style="margin-bottom:14px">選要叫的商品、填數量加入購物車，再到「購物車」送出。</div>
+  <div class="card"><div class="filters">
+    <div class="field"><label>產品名稱/料號</label><input id="fName" value="${f.name}" placeholder="請輸入產品名稱"></div>
+    <div class="field"><label>供應商</label><select id="fSup"><option value="">所有供應商</option>${sups.map(s=>`<option ${f.sup===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="field"><label>類別</label><select id="fCat"><option value="">所有類別</option>${cats.map(s=>`<option ${f.cat===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="field" style="display:flex;gap:8px"><button class="btn line" id="fReset">重設</button><button class="btn" id="fSearch">搜尋</button></div></div></div>
+  <div class="card" style="padding:0;overflow:hidden"><table>
+   <thead><tr><th>產品名稱</th><th>供應商</th><th>類別</th><th class="right">單價 / 單位</th><th class="center">下單數量</th><th class="center">最愛</th></tr></thead>
+   <tbody>${rows.map(rowProduct).join('')||`<tr><td colspan="6"><div class="empty">查無產品。請先到「基本資料建置 → 商品與價格」新增。</div></td></tr>`}</tbody></table></div>`;}
+function priceCell(p){const m=supPricing(p.supplier);
+  if(m==='隨貨')return `<span class="pill c">時價</span><div class="muted" style="font-size:11px;margin-top:3px">收貨時計價</div>`;
+  if(m==='週報'){const pr=priceFor(p,isoAt(0));
+    return pr==null?`<span class="pill low">本週未報價</span><div class="muted" style="font-size:11px;margin-top:3px">請先登錄本週菜價</div>`
+      :`$${fmt(pr)} / ${esc(p.unit)}<div class="muted" style="font-size:11px;margin-top:3px">本週時價</div>`;}
+  return `$${fmt2(p.price)} / ${esc(p.unit)}${supTax(p.supplier)==='未稅'?`<div class="muted" style="font-size:11px;margin-top:3px">未稅 · 含稅 $${fmt2(toIncl(p.price))}</div>`:''}`;}
+function rowProduct(p){const q=cart[p.id]||1;
+  return `<tr><td><div class="pname"><span class="thumb">📦</span><div>${esc(p.name)} ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</div></div></td>
+   <td>${esc(p.supplier)} <span class="pill ${supType(p.supplier)==='月結'?'m':'c'}" style="transform:scale(.85)">${supType(p.supplier)}</span></td><td>${esc(p.cat)}</td>
+   <td class="right">${priceCell(p)}</td>
+   <td class="center"><div style="display:inline-flex;gap:8px;align-items:center"><span class="stepper"><button onclick="stepCart('${p.id}',-1)">−</button><input id="q_${p.id}" value="${q}" onchange="setCart('${p.id}',this.value)"><button onclick="stepCart('${p.id}',1)">＋</button></span>
+     <button class="btn mini" onclick="addCart('${p.id}')">加入 🛒</button></div></td>
+   <td class="center"><button class="star ${isFav(p.id)?'':'off'}" title="${isFav(p.id)?'從最愛移除':'加入我的最愛'}" onclick="toggleFav('${p.id}')">${isFav(p.id)?'★':'☆'}</button></td></tr>`;}
+/* ====== 商品與價格（建置用） ====== */
+function vProdAdmin(){
+  const bySup={};products.forEach((p,i)=>{(bySup[p.supplier]=bySup[p.supplier]||[]).push({...p,i});});
+  const names=suppliers.map(s=>s.name).filter(n=>bySup[n]);
+  return `<div class="crumb">首頁 / 基本資料建置</div>
+  <div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin-bottom:0">商品與價格</h1><button class="btn" onclick="openProduct('')">＋ 新增商品</button></div>
+  <div class="muted" style="margin:8px 0 16px">建置用頁面。廠商通知調價時，在這裡按「編輯」改單價即可，改完全系統同步。</div>
+  ${names.length?names.map(n=>`<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:12px 16px;font-weight:700;background:${supType(n)==='月結'?'var(--blue-soft)':'var(--cash)'};display:flex;justify-content:space-between">
+      <span>${esc(n)} <span class="pill ${supType(n)==='月結'?'m':'c'}">${supType(n)}</span>
+        <span class="pill" style="${supTax(n)==='未稅'?'background:#FDF0DC;color:#B9741C':'background:#EEF3EF;color:#4A6B58'}">${supTax(n)==='未稅'?'未稅報價 ＋5%':'含稅報價'}</span></span><span class="muted" style="font-weight:400">${bySup[n].length} 項</span></div>
+    <table><thead><tr><th>商品名稱</th><th>類別</th><th class="right">單價（${supTax(n)}）</th><th class="right">單位</th><th></th></tr></thead>
+    <tbody>${bySup[n].map(p=>`<tr><td><b>${esc(p.name)}</b> ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</td><td class="muted">${esc(p.cat)}</td>
+      <td class="right"><span class="mlab">單價</span><b>$${fmt2(p.price)}</b>
+        <div class="muted" style="font-size:11px">${supTax(n)==='未稅'?'未稅 · 含稅 $'+fmt2(toIncl(p.price)):'含稅 · 未稅 $'+fmt2(toExcl(p.price))}</div></td><td class="right muted"><span class="mlab">單位</span>/ ${esc(p.unit)}</td>
+      <td class="right"><button class="btn grey mini" onclick="openProduct('${p.id}')">編輯</button></td></tr>`).join('')}</tbody></table></div>`).join('')
+  :`<div class="card"><div class="empty">還沒有商品，點右上角「＋ 新增商品」開始建置。</div></div>`}`;
+}
+/* ====== 購物車 ====== */
+let oForm={supplier:'',date:''};
+function vOrdering(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id=>({...products.find(p=>p.id===id),qty:cart[id]}));
+  const sups=[...new Set(items.map(i=>i.supplier))];
+  items.forEach(i=>i._p=priceFor(i,isoAt(0)));
+  const total=items.reduce((s,i)=>s+((i._p||0)*i.qty),0);const anyTBD=items.some(i=>i._p==null);
+  return `<div class="crumb">首頁 / 採購</div><h1>購物車</h1>
+  <div class="muted" style="margin-bottom:14px">確認要叫的貨與到貨日後按「送出訂單」，系統會<b style="color:var(--ink)">依廠商自動拆成各自的叫貨單</b>。</div>
+  <div class="card"><div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:11px 14px;background:var(--orange-soft);border-radius:10px">
+      <span style="font-size:20px">📍</span><div><div style="font-size:11.5px;color:var(--muted)">下單門市</div><b style="font-size:15px">${esc(curStoreName())}</b></div>
+      <span class="muted" style="margin-left:auto;font-size:12px">要換店？點右上角切換</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field"><label>供應商</label><select id="oSup"><option value="">全部（依商品自動分單）</option>${sups.map(s=>`<option ${oForm.supplier===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>預期到貨日</label><input type="date" id="oDate" value="${oForm.date||isoAt(1)}"></div></div></div>
+  ${items.length?`<div class="card" style="padding:0;overflow:hidden"><table>
+    <thead><tr><th>產品</th><th>供應商</th><th class="center">數量</th><th class="right">單價</th><th class="right">小計</th><th></th></tr></thead>
+    <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.supplier)}</td>
+      <td class="center"><span class="stepper"><button onclick="stepCart('${i.id}',-1)">−</button><input value="${i.qty}" onchange="setCart('${i.id}',this.value)"><button onclick="stepCart('${i.id}',1)">＋</button></span></td>
+      <td class="right">${i._p==null?'<span class="pill c">時價</span>':'$'+fmt(i._p)}</td><td class="right">${i._p==null?'<span class="muted">待計價</span>':'<b>$'+fmt(i._p*i.qty)+'</b>'}</td><td class="right"><button class="btn grey mini" onclick="setCart('${i.id}',0)">移除</button></td></tr>`).join('')}</tbody></table></div>
+  <div class="sum">${items.some(i=>supTax(i.supplier)==='未稅')?`<span class="pill" style="background:#FDF0DC;color:#B9741C">含未稅報價廠商，結算時另加 5% 營業稅</span>`:''}${anyTBD?`<span class="pill c">含時價品項，金額於收貨時確定</span>`:''}<span class="muted">共 ${items.length} 項</span><span>合計 <b>$${fmt(total)}</b>${anyTBD?'<span class="muted" style="font-size:12px"> +時價</span>':''}</span><button class="btn green" id="submitBtn" onclick="submitOrder()">送出訂單</button></div>`
+  :`<div class="card"><div class="empty">🛒 購物車是空的。<br><span style="font-size:13px">先到「我的最愛」或「選貨叫貨」把要叫的貨加進購物車，再點右上角 🛒 回到這裡送出。</span>
+    <div style="margin-top:18px;display:flex;gap:9px;justify-content:center">
+      <button class="btn" onclick="go('fav')">⭐ 我的最愛</button>
+      <button class="btn line" onclick="go('products')">選貨叫貨</button></div></div></div>`}`;}
+/* ====== 已送出的訂單 ====== */
+function vOrders(){return `<div class="crumb">首頁 / 採購</div><h1>已送出的訂單</h1>
+  <div class="muted" style="margin-bottom:14px">已經送出去的叫貨單紀錄，可查金額與收貨狀態。</div>
+  ${orders.length?orders.map(o=>`<div class="card ${o.status==='已作廢'?'voided':''}" style="padding:0;overflow:hidden">
+    <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'—')}</span><br><span class="muted" style="font-size:12.5px">供應商：${o.supplier}｜下單 ${mmdd(o.date)}｜到貨 ${mmdd(o.deliveryDate)}</span></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="pill ${o.status==='已驗收'?'done':o.status==='已作廢'?'void':'wait'}">${o.status}</span>
+        ${o.status==='已作廢'?`<button class="btn grey mini" onclick="restoreOrder('${o.no}')">還原</button>`
+          :`<button class="btn grey mini" onclick="openEditOrder('${o.no}')">修改 / 作廢</button>
+            <button class="btn grey mini" title="拿到廠商退貨單時登錄" onclick="returnFromOrder('${o.no}')">↩︎ 退貨</button>`}</div></div>
+    <table><tbody>${o.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="center muted">${i.qty} ${esc(i.unit)}</td><td class="right">${i.price==null?'<span class="muted">時價待計</span>':'$'+fmt(i.price*i.qty)}</td></tr>`).join('')}
+      <tr><td class="right" colspan="2"><b>合計</b></td><td class="right"><b>$${fmt(orderTotal(o))}</b></td></tr></tbody></table></div>`).join('')
+    :`<div class="card"><div class="empty">還沒有訂單。</div></div>`}`;}
+/* ====== 驗收列表 ====== */
+
+function openEditOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  openModal(`<h3>修改訂單 ${o.no}</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:14px">${esc(o.supplier)}　·　下單 ${mmdd(o.date)}　·　${o.status}</div>
+    <div style="max-height:44vh;overflow:auto;background:#FAF7F2;border-radius:12px;padding:6px 12px">
+    <table style="font-size:13px"><tbody>${o.items.map((i,idx)=>`<tr>
+      <td>${esc(i.name)}<div class="muted" style="font-size:11.5px">${i.price==null?'時價待計':'$'+fmt(i.price)+' / '+esc(i.unit)}</div></td>
+      <td class="right" style="white-space:nowrap"><input type="number" min="0" style="width:82px;text-align:right;display:inline-block" value="${i.qty}" data-eq="${idx}"> ${esc(i.unit)}</td>
+      </tr>`).join('')}</tbody></table></div>
+    <div class="muted" style="font-size:11.5px;margin-top:10px;line-height:1.7">數量填 <b>0</b> 會移除該品項。<br>作廢後不列入貨款結算與物料成本，但紀錄會保留可還原。</div>
+    <div class="modact"><button class="btn grey mini" onclick="voidOrder('${o.no}')" style="margin-right:auto">🚫 作廢整張單</button>
+      <button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveEditOrder('${o.no}')">儲存</button></div>`);}
+function saveEditOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  const keep=[];document.querySelectorAll('[data-eq]').forEach(inp=>{const idx=+inp.dataset.eq;
+    const q=Math.max(0,parseInt(inp.value)||0);if(q>0){o.items[idx].qty=q;keep.push(o.items[idx]);}});
+  if(!keep.length){toast('至少要保留一項；要全部取消請按「作廢整張單」');return;}
+  o.items=keep;cloudSaveOrder(o);persist();hideModal();toast('訂單已更新 ✓');render();}
+function voidOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  if(!confirm(`確定作廢 ${no}？\n\n作廢後不列入貨款結算與物料成本，之後仍可還原。`))return;
+  o.status='已作廢';cloudSaveOrder(o);persist();hideModal();toast('已作廢');render();}
+function restoreOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  o.status='待驗收';cloudSaveOrder(o);persist();toast('已還原為待收貨');render();}
+function vReceiving(){const wait=orders.filter(o=>o.status!=='已驗收'&&o.status!=='已作廢');
+  return `<div class="crumb">首頁 / 收貨</div><h1>收貨確認</h1>
+  <div class="card"><span class="muted">按「確認收貨」代表這張單貨已到，會反映在「貨款結算」的收貨狀態。</span></div>
+  ${wait.length?wait.map(o=>{const tbd=orderTBD(o);
+    return `<div class="card" style="padding:0;overflow:hidden">
+    <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'')} · ${o.supplier}</span>
+      ${tbd?' <span class="pill c">時價 · 請填實際單價</span>':''}<br><span class="muted" style="font-size:12.5px">到貨 ${mmdd(o.deliveryDate)}</span></div>
+      <button class="btn green mini" onclick="receive('${o.no}')">✓ 確認收貨</button></div>
+    ${tbd?`<div style="padding:12px 20px 0;font-size:12.5px" class="muted">這家是時價廠商，請照貨單填入當天實際單價，金額才會進貨款結算。</div>`:''}
+    ${(tbd||o.photo)?`<div style="padding:12px 20px 0">
+      ${o.photo?`<img src="${o.photo}" onclick="viewPhoto('${o.no}')" style="max-height:200px;max-width:100%;border-radius:12px;cursor:zoom-in;display:block;margin-bottom:9px">`:''}
+      <label class="btn line mini" style="display:inline-block;cursor:pointer">📷 ${o.photo?'換一張貨單照片':'附上貨單照片（LINE 存下來的圖）'}
+        <input type="file" accept="image/*" style="display:none" onchange="attachPhoto('${o.no}',this)"></label>
+      ${o.photo?`<button class="btn grey mini" onclick="viewPhoto('${o.no}')" style="margin-left:6px">🔍 放大看</button>`:''}</div>`:''}
+    <table><tbody>${o.items.map((i,idx)=>`<tr><td>${esc(i.name)}</td><td class="center muted">${i.qty} ${esc(i.unit)}</td>
+      <td class="right">${i.price==null
+        ?`<input style="width:120px;text-align:right;display:inline-block" type="number" step="0.01" placeholder="實際單價" data-ip="${o.no}|${idx}">`
+        :`$${fmt(i.price)} × ${i.qty} = <b>$${fmt(i.price*i.qty)}</b>`}</td></tr>`).join('')}</tbody></table></div>`;}).join('')
+    :`<div class="card"><div class="empty">目前沒有待收貨的訂單。</div></div>`}`;}
+/* ====== 綁定/動作 ====== */
+function bind(){const g=id=>document.getElementById(id);
+  if(page==='dashboard')g('dMonth')&&(g('dMonth').onchange=e=>{selMonth=e.target.value;persist();render();});
+  if(page==='payment')g('mMonth')&&(g('mMonth').onchange=e=>{selMonth=e.target.value;persist();render();});
+  if(page==='weekly'){g('wkSupSel')&&(g('wkSupSel').onchange=e=>{wkSup=e.target.value;render();});g('wkWeekSel')&&(g('wkWeekSel').onchange=e=>{wkWeek=e.target.value;render();});}
+  if(page==='products'){g('fSearch').onclick=()=>{f.name=g('fName').value.trim();f.sup=g('fSup').value;f.cat=g('fCat').value;render();};g('fReset').onclick=()=>{f={name:'',sup:'',cat:''};render();};}
+  if(page==='ordering'){g('oSup')&&(g('oSup').onchange=e=>oForm.supplier=e.target.value);g('oDate')&&(g('oDate').onchange=e=>oForm.date=e.target.value);}}
+function stepCart(id,d){setCart(id,Math.max(0,(cart[id]||1)+d));}
+function setCart(id,v){v=Math.max(0,parseInt(v)||0);if(v===0)delete cart[id];else cart[id]=v;persist();render();}
+function addCart(id){const inp=document.getElementById('q_'+id);const q=Math.max(1,parseInt(inp&&inp.value)||1);cart[id]=q;persist();toast('已加入購物車 🛒');badges();}
+async function submitOrder(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id=>({...products.find(p=>p.id===id),qty:cart[id]}));
+  if(!items.length){toast('購物車是空的');return;}let pick=items;if(oForm.supplier)pick=items.filter(i=>i.supplier===oForm.supplier);
+  if(!pick.length){toast('該供應商沒有商品');return;}const bySup={};pick.forEach(i=>{(bySup[i.supplier]=bySup[i.supplier]||[]).push(i);});
+  const btn=document.getElementById('submitBtn'); if(btn){btn.disabled=true;btn.textContent='送出中…';}
+  try{
+    for(const sup of Object.keys(bySup)){
+      const no='PO'+(await orderSeq());
+      const o={no,store:selStore,storeName:curStoreName(),supplier:sup,date:isoAt(0),deliveryDate:oForm.date||isoAt(1),status:'待驗收',
+        items:bySup[sup].map(i=>({id:i.id,name:i.name,spec:i.spec,unit:i.unit,price:priceFor(i,isoAt(0)),qty:i.qty}))};
+      orders.unshift(o); cloudSaveOrder(o);
+      bySup[sup].forEach(i=>{lastQty[`${selStore}|${i.id}`]=i.qty;delete cart[i.id];});
+    }
+  }catch(e){console.warn(e);toast('送出失敗，請再試一次');if(btn){btn.disabled=false;btn.textContent='送出訂單';}return;}
+  persist();toast('訂單已送出 ✓');go('orders');}
+function attachPhoto(no,input){const f=input.files&&input.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=e=>{const img=new Image();
+    img.onload=()=>{const max=1100;let w=img.width,h=img.height;
+      if(w>max||h>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      const o=orders.find(x=>x.no===no);if(!o)return;
+      o.photo=c.toDataURL('image/jpeg',0.55);
+      try{persist();cloudSaveOrder(o);toast('已附上貨單照片 ✓');}catch(err){delete o.photo;toast('儲存空間不足，照片無法保存');}
+      render();};
+    img.src=e.target.result;};
+  rd.readAsDataURL(f);}
+function viewPhoto(no){const o=orders.find(x=>x.no===no);if(!o||!o.photo)return;
+  openModal(`<h3>${o.no}　貨單照片</h3><img src="${o.photo}" style="width:100%;border-radius:12px">
+    <div class="modact" style="margin-top:14px"><button class="btn grey" onclick="hideModal()">關閉</button></div>`);}
+function receive(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  let missing=false;
+  document.querySelectorAll(`[data-ip^="${no}|"]`).forEach(inp=>{const idx=+inp.dataset.ip.split('|')[1];
+    const v=parseFloat(inp.value);if(isNaN(v)){missing=true;}else o.items[idx].price=v;});
+  if(missing){toast('請先填完所有時價品項的單價');return;}
+  o.status='已驗收';cloudSaveOrder(o);persist();toast('已確認收貨 ✓');render();}
+/* ====== 工具 ====== */
+let seq=load('p_seq')||1003;
+async function orderSeq(){
+  if(CLOUD_ON&&window.CLOUD){try{const n=await CLOUD.nextSeq(SP()+'/seq',1003);seq=n;store.set('p_seq',JSON.stringify(seq));return n;}catch(e){console.warn('取號失敗，改用本機號',e);}}
+  seq++;store.set('p_seq',JSON.stringify(seq));return seq;}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function fmt(n){return (Math.round(n)||0).toLocaleString('en-US');}
+function fmt2(n){return (Math.round((Number(n)||0)*100)/100).toLocaleString('en-US',{maximumFractionDigits:2});}
+function toIncl(v){return Math.round(v*1.05*100)/100;}   // 未稅 → 含稅
+function toExcl(v){return Math.round(v/1.05*100)/100;}   // 含稅 → 未稅
+function pad2(n){return String(n).padStart(2,'0');}
+function isoAt(add){const d=new Date();d.setDate(d.getDate()+add);return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
+function curMonth(){const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;}
+function monthOptions(sel){const d=new Date();const arr=[];for(let i=-15;i<=2;i++){const x=new Date(d.getFullYear(),d.getMonth()+i,1);arr.push(`${x.getFullYear()}-${pad2(x.getMonth()+1)}`);}
+  if(sel&&!arr.includes(sel))arr.push(sel);
+  return arr.sort().reverse().map(m=>{const[y,mm]=m.split('-');return `<option value="${m}" ${m===sel?'selected':''}>${y} 年 ${mm} 月</option>`;}).join('');}
+function mmdd(iso){if(!iso)return'';const p=iso.split('-');return `${p[1]}/${p[2]}`;}
+let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1700);}
+render();
+setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, get, set, remove, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getAuth, signInAnonymously, signInWithEmailAndPassword, onAuthStateChanged, signOut,
+           setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+  /* ---- 打卡系統（只讀營業額與門市，完全不寫入） ---- */
+  const punchCfg={apiKey:"AIzaSyDp3j6gxWptUPSUEohR27IfkCjzzBk1Gl4",authDomain:"punch-83688.firebaseapp.com",databaseURL:"https://punch-83688-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"punch-83688",storageBucket:"punch-83688.firebasestorage.app",messagingSenderId:"68649051357",appId:"1:68649051357:web:d4e0c4913e026091052734"};
+  /* ---- 叫貨系統自己的資料庫 ---- */
+  const orderCfg={apiKey:"AIzaSyA97V0-UtVt6KLHkjZSlKNtDZzcyFUeuRo",authDomain:"jianren-order.firebaseapp.com",databaseURL:"https://jianren-order-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"jianren-order",storageBucket:"jianren-order.firebasestorage.app",messagingSenderId:"148202708351",appId:"1:148202708351:web:692464c6574b8a87a78e4a"};
+
+  const pApp=initializeApp(punchCfg,'punch'), oApp=initializeApp(orderCfg,'order');
+  const pAuth=getAuth(pApp), oAuth=getAuth(oApp);
+  const pDb=getDatabase(pApp),  oDb=getDatabase(oApp);
+
+  const CLOUD={
+    async login(email,pw){ await setPersistence(oAuth,browserLocalPersistence);
+      const c=await signInWithEmailAndPassword(oAuth,email,pw); return c.user; },
+    logout(){ return signOut(oAuth); },
+    onAuth(cb){ onAuthStateChanged(oAuth,cb); },
+    user(){ return oAuth.currentUser; },
+    watch(path,cb){ return onValue(ref(oDb,path),snap=>cb(snap.val()),err=>{console.warn('watch fail',path,err);cb(null,err);}); },
+    async read(path){ return (await get(ref(oDb,path))).val(); },
+    set(path,val){ return set(ref(oDb,path),val===undefined?null:val); },
+    del(path){ return remove(ref(oDb,path)); },
+    async nextSeq(path,start){ const r=await runTransaction(ref(oDb,path),v=>((typeof v==='number'?v:(start||1000))+1));
+      return r.snapshot.val(); }
+  };
+  window.CLOUD=CLOUD;
+
+  /* ---- 打卡系統資料（匿名唯讀） ---- */
+  (async()=>{ try{
+    await signInAnonymously(pAuth);
+    const [st,rv]=await Promise.all([get(ref(pDb,'stores')),get(ref(pDb,'revenue'))]);
+    window.__applyFB(st.val()||{},rv.val()||{});
+  }catch(e){ console.warn('無法連線打卡系統：',e); window.__failFB(); } })();
+
+  if(window.__cloudReady)window.__cloudReady();
+</script>
+</body>
+</html>
