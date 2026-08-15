@@ -848,7 +848,7 @@ function vPayment(){
       const ords=ordersInWindow(s.name,win),done=ords.filter(o=>o.status==='已驗收').length,
             rl=returns.filter(r=>r.store===selStore&&r.supplier===s.name&&r.date>=win.start&&r.date<=win.end);
       return `<tr style="cursor:pointer" onclick="openSupDetail('${esc(s.name)}')"><td><b>${esc(s.name)}</b>
-          <div class="muted" style="font-size:11.5px;margin-top:2px">${ords.length?done+' 張已收貨':'無叫貨單'}${pend?`　·　<span style="color:var(--orange-d)">${ords.length-done} 張待收貨 $${fmt(pend)}</span>`:''}${rl.length?'　·　'+rl.length+' 張退貨／折讓單':''}${vat?'　·　未稅報價，另加營業稅 $'+fmt(vat):''}${man?'　·　含手動調整 $'+fmt(man):''}</div></td>
+          <div class="muted" style="font-size:11.5px;margin-top:2px">${ords.length?done+' 張已收貨':'無叫貨單'}${pend?`　·　<span style="color:var(--orange-d)">${ords.length-done} 張待收貨 $${fmt(pend)}</span>`:''}${rl.length?'　·　'+rl.length+' 張退貨／折讓單':''}${rl.filter(r=>r.photo).length?`　·　<a style="cursor:pointer;text-decoration:underline;color:var(--red)" onclick="event.stopPropagation();rPhotoGallery('${esc(s.name)}')">📷 看 ${rl.filter(r=>r.photo).length} 張退貨單</a>`:''}${vat?'　·　未稅報價，另加營業稅 $'+fmt(vat):''}${man?'　·　含手動調整 $'+fmt(man):''}</div></td>
         <td class="muted" style="font-size:12px">${mmdd(win.start)}–${mmdd(win.end)}</td>
         <td class="right"><span class="mlab">叫貨單金額</span>${gross?'$'+fmt(gross):'<span class="muted">—</span>'}</td>
         <td class="right">${ret?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(ret)}</b>`:''}</td>
@@ -889,7 +889,7 @@ function vSupDetail(){
     return `<tr${(a||m||r)?'':' style="opacity:.55"'}><td><b>${mmdd(d)}</b> <span class="muted">(${wk})</span>${we?'':''}
         ${ords.map(o=>`<div class="muted" style="font-size:11.5px">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　✓已收</div>`).join('')}
         ${pend.map(o=>`<div style="font-size:11.5px;color:var(--orange-d)">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　待收貨 $${fmt(orderTotal(o))}（未計入）</div>`).join('')}
-        ${rts.map(v=>`<div style="font-size:11.5px;color:var(--red);cursor:pointer" onclick="event.stopPropagation();openReturn('${v.id}')">↩︎ ${esc(v.kind)}單 ${esc(v.docNo||v.id)}　${(v.items||[]).map(i=>esc(i.name)+' ×'+i.qty).join('、')}　－$${fmt(retTotal(v))}</div>`).join('')}</td>
+        ${rts.map(v=>`<div style="font-size:11.5px;color:var(--red)"><span style="cursor:pointer" onclick="event.stopPropagation();openReturn('${v.id}')">↩︎ ${esc(v.kind)}單 ${esc(v.docNo||v.id)}　${(v.items||[]).map(i=>esc(i.name)+' ×'+i.qty).join('、')}　－$${fmt(retTotal(v))}</span>${v.photo?` <a style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();rViewPhoto('${v.id}')">📷 看退貨單</a>`:''}</div>`).join('')}</td>
       <td class="right"><span class="mlab">叫貨</span>${a?'$'+fmt(a):'<span class="muted">—</span>'}</td>
       <td class="right">${r?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(r)}</b>`:''}</td>
       <td class="right"><span class="mlab">手動調整</span><input style="width:120px;text-align:right;display:inline-block" type="number" value="${m||''}" placeholder="0" data-day="${d}"></td>
@@ -920,12 +920,12 @@ function savePayment(){
 
 
 /* ====== 退貨／折讓單 ====== */
-let rDraft=null;
-function newReturn(sup){
+let rDraft=null,rShowItems=false;
+function newReturn(sup){rShowItems=false;
   rDraft={id:'',kind:'退貨',supplier:sup||(suppliers[0]||{}).name||'',date:isoAt(0),docNo:'',refNo:'',note:'',items:[],override:''};
   openReturnModal();}
 function openReturn(id){const r=returns.find(x=>x.id===id);if(!r)return;
-  rDraft=JSON.parse(JSON.stringify(r));if(rDraft.override==null)rDraft.override='';openReturnModal();}
+  rShowItems=false;rDraft=JSON.parse(JSON.stringify(r));if(rDraft.override==null)rDraft.override='';openReturnModal();}
 function rSyncTop(){
   const g=i=>{const e=document.getElementById(i);return e?e.value:undefined;};
   const k=g('rKind'); if(k!==undefined)rDraft.kind=k;
@@ -952,10 +952,40 @@ function rPickProduct(i,pid){rSyncTop();const p=products.find(x=>x.id===pid);
   openReturnModal();}
 function rChangeSup(){rSyncTop();openReturnModal();}
 // 從某張叫貨單開退貨單（帶入廠商，品項自己挑要退的）
-function returnFromOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
+function returnFromOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;rShowItems=false;
   rDraft={id:'',kind:'退貨',supplier:o.supplier,date:isoAt(0),docNo:'',refNo:o.no,note:'',items:[],override:''};
   openReturnModal();}
 function rSum(){return rDraft.items.reduce((s,i)=>s+(Number(i.amount)||0),0);}
+// 退貨單照片：縮到 1400px、品質 0.6，看得清楚又不會把雲端塞爆
+function rAttachPhoto(input){const fl=input.files&&input.files[0];if(!fl)return;
+  rSyncTop();toast('照片處理中…');
+  const rd=new FileReader();
+  rd.onload=e=>{const img=new Image();
+    img.onload=()=>{const max=1400;let w=img.width,h=img.height;
+      if(w>max||h>max){const sc=max/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      rDraft.photo=c.toDataURL('image/jpeg',0.6);
+      openReturnModal();toast('照片已附上 ✓');};
+    img.onerror=()=>toast('這張圖讀不到，換一張試試');
+    img.src=e.target.result;};
+  rd.readAsDataURL(fl);}
+function rDelPhoto(){rSyncTop();delete rDraft.photo;openReturnModal();}
+function rShowItemsOn(){rSyncTop();rShowItems=true;if(!rDraft.items.length)rDraft.items.push({pid:'',name:'',unit:'',qty:1,price:0,amount:0});openReturnModal();}
+function rUseSum(){rSyncTop();rDraft.override=rSum();openReturnModal();}
+function rPhotoGallery(sup){const t=supType(sup),win=monthWindow(selMonth,t);
+  const list=returns.filter(r=>r.store===selStore&&r.supplier===sup&&r.date>=win.start&&r.date<=win.end&&r.photo)
+    .sort((a,b)=>a.date<b.date?-1:1);
+  if(!list.length){toast('這一期沒有退貨單照片');return;}
+  openModal(`<h3>${esc(sup)}　退貨單照片</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">${mmdd(win.start)}～${mmdd(win.end)} 這一期共 ${list.length} 張。</div>
+    <div style="max-height:60vh;overflow:auto">${list.map(r=>`<div style="margin-bottom:18px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">${mmdd(r.date)}　${esc(r.kind)}單 ${esc(r.docNo||r.id)}　<span style="color:var(--red)">－$${fmt(retTotal(r))}</span>${r.note?`<span class="muted" style="font-weight:400">　${esc(r.note)}</span>`:''}</div>
+      <img src="${r.photo}" style="width:100%;border-radius:12px"></div>`).join('')}</div>
+    <div class="modact"><button class="btn grey" onclick="hideModal()">關閉</button></div>`,true);}
+function rViewPhoto(id){const r=returns.find(x=>x.id===id);if(!r||!r.photo)return;
+  openModal(`<h3>${esc(r.kind)}單 ${esc(r.docNo||r.id)}</h3><img src="${r.photo}" style="width:100%;border-radius:12px">
+    <div class="modact" style="margin-top:14px"><button class="btn grey" onclick="hideModal()">關閉</button></div>`,true);}
 function openReturnModal(){
   const sup=rDraft.supplier;
   const list=products.filter(p=>p.supplier===sup);
@@ -971,7 +1001,9 @@ function openReturnModal(){
       <td data-l="金額"><input data-ri="${i}" data-rf="amount" type="number" step="any" value="${it.amount}" style="width:110px;text-align:right"></td>
       <td class="right" style="width:44px"><button class="btn grey mini" style="padding:7px 11px" title="移除這一項" onclick="rDelItem(${i})">✕</button></td></tr>`).join('');
   const sum=rSum();
+  const openItems=rShowItems||rDraft.items.length>0;
   openModal(`<h3>${rDraft.id?'編輯':'登錄'}退貨／折讓單</h3>
+  <div class="muted" style="font-size:12.5px;margin:-6px 0 14px;line-height:1.6">拍一張廠商開的退貨單，填上要扣的金額就好。品項要不要一項一項記，看妳方便。</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap">
     <div class="fld" style="flex:0 0 130px"><label>單據類型</label><select id="rKind">
       <option value="退貨" ${rDraft.kind==='退貨'?'selected':''}>退貨單</option>
@@ -980,20 +1012,43 @@ function openReturnModal(){
       ${suppliers.map(x=>`<option value="${esc(x.name)}" ${x.name===sup?'selected':''}>${esc(x.name)}（${x.type}）</option>`).join('')}</select></div>
     <div class="fld" style="flex:0 0 165px"><label>銷退日期</label><input id="rDate" type="date" value="${rDraft.date}" onchange="rChangeSup()"></div>
   </div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <div class="fld" style="flex:1 1 180px"><label>銷退單號</label><input id="rDoc" value="${esc(rDraft.docNo||'')}" placeholder="例：20260529010"></div>
-    <div class="fld" style="flex:1 1 180px"><label>前置單據（原銷貨單）</label><input id="rRef" value="${esc(rDraft.refNo||'')}" placeholder="例：銷貨單267110"></div>
+
+  <div style="background:var(--amber-soft);border-radius:14px;padding:14px 16px;margin-bottom:14px">
+    <label style="font-size:13px;color:#B9741C;font-weight:700;display:block;margin-bottom:8px">💰 這張單要扣多少（退款總額）</label>
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #EED9B8;border-radius:12px;padding:4px 14px">
+      <span style="font-size:20px;font-weight:800;color:var(--muted)">$</span>
+      <input id="rOver" type="number" step="any" inputmode="decimal" value="${rDraft.override===''||rDraft.override==null?'':rDraft.override}"
+        placeholder="照退貨單上的總計填" style="font-size:21px;font-weight:800;padding:10px 0;background:transparent;border:none;flex:1"></div>
+    <div class="muted" style="font-size:11.5px;margin-top:8px">留空的話就用下面品項加總（目前 $${fmt(sum)}）。</div>
   </div>
-  <div class="fld"><label>退貨品項</label>
-    <div style="overflow:auto;border:1px solid var(--line);border-radius:12px">
-    <table class="keepcols" style="min-width:600px;width:100%"><thead><tr><th>品項</th><th>單位</th><th class="right">數量</th><th class="right">單價</th><th class="right">金額</th><th style="width:44px"></th></tr></thead>
-    <tbody>${rows||'<tr><td colspan="6" class="muted" style="padding:14px">還沒有品項，按下面「＋ 加一項」。</td></tr>'}</tbody></table></div>
-    <div style="margin-top:8px"><button class="btn line mini" onclick="rAddItem()">＋ 加一項</button></div></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-    <div class="fld" style="flex:1 1 200px"><label>品項加總</label><div style="font-size:19px;font-weight:800;padding:8px 0">$${fmt(sum)}</div></div>
-    <div class="fld" style="flex:1 1 200px"><label>金額總計（跟退貨單不一樣時填這裡）</label>
-      <input id="rOver" type="number" step="any" value="${rDraft.override===''||rDraft.override==null?'':rDraft.override}" placeholder="留空＝用品項加總 $${fmt(sum)}"></div>
-  </div>
+
+  <div class="fld"><label>📷 退貨單照片</label>
+    ${rDraft.photo?`<img src="${rDraft.photo}" style="max-height:220px;max-width:100%;border-radius:12px;display:block;margin-bottom:9px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="btn line mini" style="cursor:pointer">換一張<input type="file" accept="image/*" capture="environment" style="display:none" onchange="rAttachPhoto(this)"></label>
+        <button class="btn grey mini" onclick="rDelPhoto()">移除照片</button></div>`
+    :`<label class="btn line" style="display:inline-block;cursor:pointer">📷 拍照 / 選一張圖
+        <input type="file" accept="image/*" capture="environment" style="display:none" onchange="rAttachPhoto(this)"></label>
+      <div class="muted" style="font-size:11.5px;margin-top:7px">拍廠商給的退貨單，之後對帳直接看照片就好。</div>`}</div>
+
+  <details ${openItems?'open':''} style="background:#FAF7F2;border-radius:12px;padding:2px 14px 12px;margin-bottom:14px">
+    <summary style="padding:12px 0;font-weight:700;cursor:pointer;font-size:14px" onclick="rShowItems=true">單號與品項明細（選填）</summary>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div class="fld" style="flex:1 1 180px"><label>銷退單號</label><input id="rDoc" value="${esc(rDraft.docNo||'')}" placeholder="退貨單上的號碼"></div>
+      <div class="fld" style="flex:1 1 180px"><label>前置單據（原叫貨單）</label><input id="rRef" value="${esc(rDraft.refNo||'')}" placeholder="例：PO260815001"></div>
+    </div>
+    <div class="fld"><label>退了哪些品項</label>
+      ${rDraft.items.length?`<div style="overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff">
+      <table class="keepcols" style="min-width:600px;width:100%"><thead><tr><th>品項</th><th>單位</th><th class="right">數量</th><th class="right">單價</th><th class="right">金額</th><th style="width:44px"></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn line mini" onclick="rAddItem()">＋ 再加一項</button>
+        <span class="muted" style="font-size:12.5px">品項加總 <b style="color:var(--ink)">$${fmt(sum)}</b></span>
+        ${sum>0?`<button class="btn grey mini" onclick="rUseSum()">用這個金額當退款總額</button>`:''}</div>`
+      :`<button class="btn line mini" onclick="rShowItemsOn()">＋ 加第一項</button>
+        <div class="muted" style="font-size:11.5px;margin-top:7px">只退一兩樣、或懶得一項項打，這裡留空也沒關係，上面填總額就好。</div>`}</div>
+  </details>
+
   <div class="fld"><label>備註</label><input id="rNote" value="${esc(rDraft.note||'')}" placeholder="例：品質不良、送錯品項、叫錯"></div>
   <div class="muted" style="font-size:11.5px;line-height:1.65">這張單會<b>直接從該廠商本期應付貨款扣掉</b>，原本的叫貨單不會被更動。歸屬區間依<b>銷退日期</b>判斷。</div>
   <div class="modact">${rDraft.id?`<button class="btn grey mini" onclick="delReturn('${rDraft.id}')" style="margin-right:auto">刪除這張單</button>`:''}
@@ -1006,6 +1061,7 @@ function saveReturn(){
   if(!rDraft.date){alert('請填銷退日期');return;}
   rDraft.items=rDraft.items.filter(i=>(i.name||'').trim()!=='');
   const tot=rDraft.override!==''&&rDraft.override!=null?Number(rDraft.override):rSum();
+  if(!(tot>0)){alert('請填「這張單要扣多少」，不然不會從貨款扣掉。');return;}
   if(!(tot>0)){alert('金額要大於 0。請填品項金額，或直接在「金額總計」填退貨單上的總金額。');return;}
   rDraft.store=selStore;
   if(!rDraft.id){rDraft.id='R'+String(Date.now()).slice(-8);rDraft.createdAt=isoAt(0);returns.push(rDraft);}
@@ -1024,6 +1080,7 @@ function vReturns(){
     return `<tr style="cursor:pointer" onclick="openReturn('${r.id}')">
       <td><b>${mmdd(r.date)}</b> <span class="muted">${r.date.slice(0,4)}</span>
         <div class="muted" style="font-size:11.5px">${esc(r.docNo||r.id)}${r.refNo?'　·　前置 '+esc(r.refNo):''}</div></td>
+      <td class="center" style="width:52px">${r.photo?`<button class="btn grey mini" title="看退貨單照片" onclick="event.stopPropagation();rViewPhoto('${r.id}')">📷</button>`:''}</td>
       <td><b>${esc(r.supplier)}</b> <span class="pill ${t==='月結'?'m':'c'}">${t}</span>
         <div class="muted" style="font-size:11.5px">${(r.items||[]).map(i=>esc(i.name)+' ×'+i.qty+(i.unit||'')).join('、')||'—'}${r.note?'　·　'+esc(r.note):''}</div></td>
       <td><span class="pill ${r.kind==='退貨'?'c':'m'}">${esc(r.kind)}單</span></td>
@@ -1041,8 +1098,8 @@ function vReturns(){
       ${months.map(m=>`<option value="${m}" ${rFilter===m?'selected':''}>${m}</option>`).join('')}</select></div>
     <div class="muted" style="padding-bottom:10px">${list.length} 張單　·　合計扣款 <b style="color:var(--red)">$${fmt(total)}</b></div></div>
   <div class="card" style="padding:0;overflow:hidden">
-    <table><thead><tr><th>銷退日期 / 單號</th><th>廠商 / 品項</th><th>類型</th><th class="right">扣款金額</th><th></th></tr></thead>
-    <tbody>${rowsHtml||'<tr><td colspan="5"><div class="empty">還沒有退貨／折讓紀錄。<br><span class="muted" style="font-size:12.5px">拿到廠商的退貨單時按右上角「＋ 登錄退貨單」。</span></div></td></tr>'}</tbody></table></div>`;
+    <table><thead><tr><th>銷退日期 / 單號</th><th></th><th>廠商 / 品項</th><th>類型</th><th class="right">扣款金額</th><th></th></tr></thead>
+    <tbody>${rowsHtml||'<tr><td colspan="6"><div class="empty">還沒有退貨／折讓紀錄。<br><span class="muted" style="font-size:12.5px">拿到廠商的退貨單時按右上角「＋ 登錄退貨單」。</span></div></td></tr>'}</tbody></table></div>`;
 }
 
 /* ====== 廠商管理 ====== */
@@ -1468,7 +1525,7 @@ function vOrdering(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id
   const total=items.reduce((s,i)=>s+((i._p||0)*i.qty),0);const anyTBD=items.some(i=>i._p==null);
   return `<div class="crumb">首頁 / 採購</div><h1>購物車</h1>
   <div class="muted" style="margin-bottom:14px">確認要叫的貨與到貨日後按「送出訂單」，系統會<b style="color:var(--ink)">依廠商自動拆成各自的叫貨單</b>。</div>
-  <div class="card"><div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:11px 14px;background:var(--orange-soft);border-radius:10px">
+  <div class="card"><div style="display:flex;align-items:center;gap:11px;margin-bottom:14px;padding:11px 14px;background:var(--amber-soft);border-radius:10px">
       <span style="font-size:20px">📍</span><div><div style="font-size:11.5px;color:var(--muted)">下單門市</div><b style="font-size:15px">${esc(curStoreName())}</b></div>
       <span class="muted" style="margin-left:auto;font-size:12px">要換店？點右上角切換</span></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -1533,11 +1590,6 @@ function vReceiving(){const wait=storeOrders().filter(o=>o.status!=='已驗收'&
         <input type="date" id="rd_${o.no}" value="${isoAt(0)}" style="width:150px;display:inline-block;padding:8px 10px;font-size:13px" title="照廠商貨單上的日期填">
         <button class="btn green mini" onclick="receive('${o.no}')">✓ 確認收貨</button></div></div>
     ${tbd?`<div style="padding:12px 20px 0;font-size:12.5px" class="muted">這家是時價廠商。<b style="color:var(--ink)">照貨單填實收數量、單位與單價</b>——叫貨用「顆」但貨單寫「斤」的話，直接改成貨單上的數字就好。</div>`:''}
-    ${(tbd||o.photo)?`<div style="padding:12px 20px 0">
-      ${o.photo?`<img src="${o.photo}" onclick="viewPhoto('${o.no}')" style="max-height:200px;max-width:100%;border-radius:12px;cursor:zoom-in;display:block;margin-bottom:9px">`:''}
-      <label class="btn line mini" style="display:inline-block;cursor:pointer">📷 ${o.photo?'換一張貨單照片':'附上貨單照片（LINE 存下來的圖）'}
-        <input type="file" accept="image/*" style="display:none" onchange="attachPhoto('${o.no}',this)"></label>
-      ${o.photo?`<button class="btn grey mini" onclick="viewPhoto('${o.no}')" style="margin-left:6px">🔍 放大看</button>`:''}</div>`:''}
     <table><tbody>${o.items.map((i,idx)=>`<tr><td>${esc(i.name)}<div class="muted" style="font-size:11.5px">叫了 ${i.qty} ${esc(i.unit)}</div></td>
       <td class="center">${i.price==null
         ?`<span class="mlab">實收數量</span><input style="width:78px;text-align:right;display:inline-block" type="number" step="any" value="${i.qty}" data-iq="${o.no}|${idx}">
@@ -1575,22 +1627,6 @@ async function submitOrder(){const items=Object.keys(cart).filter(id=>cart[id]>0
     }
   }catch(e){console.warn(e);toast('送出失敗，請再試一次');if(btn){btn.disabled=false;btn.textContent='送出訂單';}return;}
   persist();toast('訂單已送出 ✓');go('orders');}
-function attachPhoto(no,input){const f=input.files&&input.files[0];if(!f)return;
-  const rd=new FileReader();
-  rd.onload=e=>{const img=new Image();
-    img.onload=()=>{const max=1100;let w=img.width,h=img.height;
-      if(w>max||h>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
-      const c=document.createElement('canvas');c.width=w;c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      const o=orders.find(x=>x.no===no);if(!o)return;
-      o.photo=c.toDataURL('image/jpeg',0.55);
-      try{persist();cloudSaveOrder(o);toast('已附上貨單照片 ✓');}catch(err){delete o.photo;toast('儲存空間不足，照片無法保存');}
-      render();};
-    img.src=e.target.result;};
-  rd.readAsDataURL(f);}
-function viewPhoto(no){const o=orders.find(x=>x.no===no);if(!o||!o.photo)return;
-  openModal(`<h3>${o.no}　貨單照片</h3><img src="${o.photo}" style="width:100%;border-radius:12px">
-    <div class="modact" style="margin-top:14px"><button class="btn grey" onclick="hideModal()">關閉</button></div>`);}
 function receive(no){const o=orders.find(x=>x.no===no);if(!o)return;
   let missing=false;
   // 時價品項：照貨單填實收數量、單位、單價
