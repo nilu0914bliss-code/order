@@ -553,6 +553,7 @@ window.doLogout=async function(){ try{await CLOUD.logout();}catch(e){} gatePick=
 window.enterApp=function(){
   if(!gatePick)return;
   gateExpand=false;
+  if(selStore!==gatePick){orders=[];returns=[];}
   selStore=gatePick; CLOUD_ON=true;
   store.set('p_selstore',JSON.stringify(selStore));
   store.set('p_selstorename',JSON.stringify(curStoreName()));
@@ -560,6 +561,8 @@ window.enterApp=function(){
   cloudBind(); render();
 };
 window.switchStore=function(){ CLOUD_ON=false; gateStep='store'; gatePick=selStore; gateExpand=true;
+  cloudUnsub.forEach(u=>{try{u();}catch(e){}}); cloudUnsub=[];
+  orders=[]; returns=[];
   document.getElementById('gate').classList.remove('hide'); renderGate(); };
 
 /* 模組載入前先把登入框畫出來，看起來比較不像當掉 */
@@ -572,6 +575,7 @@ document.querySelectorAll('[data-page]').forEach(el=>el.onclick=()=>go(el.datase
 function go(p){page=p;document.querySelectorAll('.navitem').forEach(n=>n.classList.toggle('active',n.dataset.page===p));render();window.scrollTo(0,0);closeMenu();}
 window.toggleMenu=function(){document.getElementById('sidebar').classList.toggle('open');document.getElementById('backdrop').classList.toggle('show');};
 window.closeMenu=function(){document.getElementById('sidebar').classList.remove('open');document.getElementById('backdrop').classList.remove('show');};
+function storeOrders(){return orders.filter(o=>!o.store||o.store===selStore);}
 function badges(){const c=Object.values(cart).reduce((s,q)=>s+(q>0?1:0),0);setBadge('cartBadge',c);}
 function setBadge(id,n){const e=document.getElementById(id);if(!e)return;e.textContent=n;e.style.display=n?'block':'none';}
 function curStoreName(){const s=STORES.find(x=>x.id===selStore);return s?s.name:'—';}
@@ -590,7 +594,7 @@ function supTax(name){const s=suppliers.find(x=>x.name===name);return (s&&s.tax)
 function isTaxFree(pid){const p=products.find(x=>x.id===pid);return !!(p&&p.taxfree);}
 // 免稅品項（例如鮮奶）不課 5%
 function taxFreeInRange(supplier,start,end){
-  return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=start&&o.date<=end)
+  return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status==='已驗收'&&costDate(o)>=start&&costDate(o)<=end)
     .reduce((s,o)=>s+(o.items||[]).reduce((t,i)=>t+(isTaxFree(i.id)?((i.price||0)*i.qty):0),0),0);}
 function taxOf(name,net,exempt){if(supTax(name)!=='未稅')return 0;
   return Math.round(Math.max(0,net-(exempt||0))*0.05);}
@@ -603,7 +607,17 @@ function returnsOn(supplier,date){return returns.filter(r=>r.store===selStore&&r
 function returnsWin(supplier,win){return returnsInRange(supplier,win.start,win.end);}
 function autoMaterial(supplier,win){const g=grossMaterial(supplier,win),net=g-returnsWin(supplier,win);
   return net+taxOf(supplier,net,taxFreeInRange(supplier,win.start,win.end));}
-function grossMaterial(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=win.start&&o.date<=win.end).reduce((s,o)=>s+orderTotal(o),0);}
+// 貨款歸期依據：每家廠商可各自設定（跟著他們帳單的算法）
+function supBasis(name){const s=suppliers.find(x=>x.name===name);return (s&&s.basis)||'收貨日';}
+function costDate(o){const b=supBasis(o.supplier);
+  if(b==='下單日')return o.date;
+  if(b==='出貨日')return o.deliveryDate||o.date;
+  return o.receivedAt||o.deliveryDate||o.date;}
+function expectDate(o){return supBasis(o.supplier)==='下單日'?o.date:(o.deliveryDate||o.date);}
+// ⭐ 只有「已驗收」的訂單才算進貨款與物料成本（收到貨才算錢）
+function grossMaterial(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status==='已驗收'&&costDate(o)>=win.start&&costDate(o)<=win.end).reduce((s,o)=>s+orderTotal(o),0);}
+// 已送出但還沒收貨的金額（先讓大家看得到，還沒算進貨款）
+function pendingMaterial(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已驗收'&&o.status!=='已作廢'&&expectDate(o)>=win.start&&expectDate(o)<=win.end).reduce((s,o)=>s+orderTotal(o),0);}
 function manualOn(supplier,date){return matManual[`${selStore}|${supplier}|${date}`]||0;}
 function manualMaterialM(supplier,month){ // 該結算區間內所有手動調整加總
   const win=monthWindow(month,supType(supplier));const prefix=`${selStore}|${supplier}|`;let sum=0;
@@ -640,7 +654,7 @@ function elapsedDayOfMonth(month){const cur=curMonth();
   return Number(isoAt(0).split('-')[2]);}
 // 物料：指定日期區間內的金額
 function materialInRange(supplier,start,end){
-  const auto=orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=start&&o.date<=end)
+  const auto=orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status==='已驗收'&&costDate(o)>=start&&costDate(o)<=end)
     .reduce((s,o)=>s+orderTotal(o),0);
   const prefix=`${selStore}|${supplier}|`;let man=0;
   Object.keys(matManual).forEach(k=>{if(!k.startsWith(prefix))return;const d=k.slice(prefix.length);
@@ -804,23 +818,26 @@ function health(pct){if(pct==null)return{cls:'',color:'var(--muted)',icon:'',lab
   return{cls:'bad',color:'var(--red)',icon:'■',label:'過高，需檢討'};}
 
 /* ====== 貨款結算 ====== */
-function ordersInWindow(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&o.date>=win.start&&o.date<=win.end);}
+function ordersInWindow(supplier,win){return orders.filter(o=>o.store===selStore&&o.supplier===supplier&&o.status!=='已作廢'&&
+  (o.status==='已驗收'?(costDate(o)>=win.start&&costDate(o)<=win.end):(expectDate(o)>=win.start&&expectDate(o)<=win.end)));}
 function vPayment(){
   const sec=(t,title,bg)=>{
-    const win=monthWindow(selMonth,t);let sub=0;
+    const win=monthWindow(selMonth,t);let sub=0,pendSub=0;
     const body=suppliers.filter(s=>s.type===t).map(s=>{
       const gross=grossMaterial(s.name,win),ret=returnsWin(s.name,win),man=manualMaterial(s.name);
       const net=gross-ret,vat=taxOf(s.name,net,taxFreeInRange(s.name,win.start,win.end)),tot=net+vat+man;sub+=tot;
-      const ords=ordersInWindow(s.name,win),rl=returns.filter(r=>r.store===selStore&&r.supplier===s.name&&r.date>=win.start&&r.date<=win.end);
+      const pend=pendingMaterial(s.name,win);pendSub+=pend;
+      const ords=ordersInWindow(s.name,win),done=ords.filter(o=>o.status==='已驗收').length,
+            rl=returns.filter(r=>r.store===selStore&&r.supplier===s.name&&r.date>=win.start&&r.date<=win.end);
       return `<tr style="cursor:pointer" onclick="openSupDetail('${esc(s.name)}')"><td><b>${esc(s.name)}</b>
-          <div class="muted" style="font-size:11.5px;margin-top:2px">${ords.length?ords.length+' 張叫貨單':'無叫貨單'}${rl.length?'　·　'+rl.length+' 張退貨／折讓單':''}${vat?'　·　未稅報價，另加營業稅 $'+fmt(vat):''}${man?'　·　含手動調整 $'+fmt(man):''}</div></td>
+          <div class="muted" style="font-size:11.5px;margin-top:2px">${ords.length?done+' 張已收貨':'無叫貨單'}${pend?`　·　<span style="color:var(--orange-d)">${ords.length-done} 張待收貨 $${fmt(pend)}</span>`:''}${rl.length?'　·　'+rl.length+' 張退貨／折讓單':''}${vat?'　·　未稅報價，另加營業稅 $'+fmt(vat):''}${man?'　·　含手動調整 $'+fmt(man):''}</div></td>
         <td class="muted" style="font-size:12px">${mmdd(win.start)}–${mmdd(win.end)}</td>
         <td class="right"><span class="mlab">叫貨單金額</span>${gross?'$'+fmt(gross):'<span class="muted">—</span>'}</td>
         <td class="right">${ret?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(ret)}</b>`:''}</td>
         <td class="right"><span class="mlab">應付合計</span><b style="font-size:15px">$${fmt(tot)}</b></td>
         <td class="right"><button class="btn grey mini" onclick="event.stopPropagation();openSupDetail('${esc(s.name)}')">每日明細 ›</button></td></tr>`;}).join('');
     return `<div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:16px 20px;font-weight:700;background:${bg};display:flex;justify-content:space-between"><span>${title}</span><span>小計 $${fmt(sub)}</span></div>
+      <div style="padding:16px 20px;font-weight:700;background:${bg};display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px"><span>${title}</span><span>小計 $${fmt(sub)}${pendSub?`<span style="font-weight:400;font-size:12.5px;color:var(--orange-d)">（另有待收貨 $${fmt(pendSub)}）</span>`:''}</span></div>
       <table><thead><tr><th>廠商</th><th>結算區間</th><th class="right">叫貨單金額</th><th class="right">退貨／折讓</th><th class="right">應付合計</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
   };
   const revfld=fb.status==='ok'?'':`<div class="card"><div style="font-weight:700;margin-bottom:10px">本月營業額</div>
@@ -828,7 +845,7 @@ function vPayment(){
   return `<div class="crumb">首頁 / 付款</div><h1>貨款結算</h1>
   <div class="card"><div style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
     <div class="field" style="max-width:180px"><label>結算月份</label><select id="mMonth">${monthOptions(selMonth)}</select></div>
-    <div class="muted" style="padding-bottom:10px">門市：<b style="color:var(--ink)">${esc(curStoreName())}</b>｜點任一廠商可看<b style="color:var(--ink)">每日明細</b>並修改單日金額。</div>
+    <div class="muted" style="padding-bottom:10px">門市：<b style="color:var(--ink)">${esc(curStoreName())}</b>｜<b style="color:var(--ink)">只有「已收貨」的訂單才算進貨款</b>，待收貨的會另外標示。歸在哪一期依<b style="color:var(--ink)">貨單日期</b>（收貨時填的那個）。</div>
     <div style="padding-bottom:6px;margin-left:auto"><button class="btn line" onclick="go('returns')">↩︎ 退貨／折讓登錄</button></div></div></div>
   ${sec('月結','月結廠商（匯款 · 結算 26～次月25）','var(--blue-soft)')}
   ${sec('現金','現金廠商（付現 · 結算 1～月底）','var(--cash)')}
@@ -845,13 +862,15 @@ function vSupDetail(){
   const t=supType(s),win=monthWindow(selMonth,t);
   let auto=0,man=0,retSum=0;
   const body=datesBetween(win.start,win.end).map(d=>{
-    const ords=orders.filter(o=>o.store===selStore&&o.supplier===s&&o.status!=='已作廢'&&o.date===d);
+    const ords=orders.filter(o=>o.store===selStore&&o.supplier===s&&o.status==='已驗收'&&costDate(o)===d);
+    const pend=orders.filter(o=>o.store===selStore&&o.supplier===s&&o.status!=='已驗收'&&o.status!=='已作廢'&&expectDate(o)===d);
     const rts=returnsOn(s,d);
     const a=ords.reduce((x,o)=>x+orderTotal(o),0),m=manualOn(s,d),r=rts.reduce((x,v)=>x+retTotal(v),0);
     auto+=a;man+=m;retSum+=r;
     const wk=weekday(d),we=(wk==='六'||wk==='日');
     return `<tr${(a||m||r)?'':' style="opacity:.55"'}><td><b>${mmdd(d)}</b> <span class="muted">(${wk})</span>${we?'':''}
-        ${ords.map(o=>`<div class="muted" style="font-size:11.5px">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　${o.status==='已驗收'?'✓已收':'待收'}</div>`).join('')}
+        ${ords.map(o=>`<div class="muted" style="font-size:11.5px">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　✓已收</div>`).join('')}
+        ${pend.map(o=>`<div style="font-size:11.5px;color:var(--orange-d)">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　待收貨 $${fmt(orderTotal(o))}（未計入）</div>`).join('')}
         ${rts.map(v=>`<div style="font-size:11.5px;color:var(--red);cursor:pointer" onclick="event.stopPropagation();openReturn('${v.id}')">↩︎ ${esc(v.kind)}單 ${esc(v.docNo||v.id)}　${(v.items||[]).map(i=>esc(i.name)+' ×'+i.qty).join('、')}　－$${fmt(retTotal(v))}</div>`).join('')}</td>
       <td class="right"><span class="mlab">叫貨</span>${a?'$'+fmt(a):'<span class="muted">—</span>'}</td>
       <td class="right">${r?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(r)}</b>`:''}</td>
@@ -862,8 +881,8 @@ function vSupDetail(){
     <h1 style="margin-bottom:0">${esc(s)} <span class="pill ${t==='月結'?'m':'c'}" style="vertical-align:middle">${t}</span></h1>
     <button class="btn line" onclick="go('payment')">‹ 返回貨款結算</button></div>
   <div class="card" style="padding:14px 20px;margin-bottom:14px">
-    <div style="margin-bottom:5px">結算區間　<b>${win.start} ～ ${win.end}</b>　·　${esc(curStoreName())}</div>
-    <div class="muted" style="font-size:12.5px;line-height:1.7">叫貨單金額自動帶入。<b>退貨／折讓</b>欄是你登錄的退貨單，會自動扣掉（點紅字可編輯）。廠商漏送、少送或金額有零星出入時，在「手動調整」填當日要增減的金額（可填負數扣除）。</div></div>
+    <div style="margin-bottom:5px">結算區間　<b>${win.start} ～ ${win.end}</b>　·　${esc(curStoreName())}　·　歸期依<b>${supBasis(s)==='收貨日'?'貨單日期':esc(supBasis(s))}</b></div>
+    <div class="muted" style="font-size:12.5px;line-height:1.7"><b>只有已收貨的訂單才算金額</b>，待收貨的會用橘字標示但不計入。<b>退貨／折讓</b>欄是你登錄的退貨單，會自動扣掉（點紅字可編輯）。廠商漏送、少送或金額有零星出入時，在「手動調整」填當日要增減的金額（可填負數扣除）。</div></div>
   <div class="card" style="padding:0;overflow:hidden">
     <table><thead><tr><th>日期 / 叫貨單</th><th class="right">叫貨單金額</th><th class="right">退貨／折讓</th><th class="right">手動調整</th><th class="right">當日合計</th></tr></thead>
     <tbody>${body}</tbody>
@@ -1012,7 +1031,7 @@ function vReturns(){
 function vSuppliers(){
   const seg=(t,title,bg)=>{const list=suppliers.map((s,i)=>({...s,i})).filter(s=>s.type===t);
     return `<div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;background:${bg}">${title}（${list.length}）</div>
-    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#FDF0DC;color:#B9741C">未稅 ＋5%</span>`:''}</td>
+    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#FDF0DC;color:#B9741C">未稅 ＋5%</span>`:''}${(s.basis&&s.basis!=='收貨日')?` <span class="pill" style="background:#EEF2F7;color:#2f4a6b">依${s.basis==='出貨日'?'預計到貨日':'下單日'}</span>`:''}</td>
       <td class="right"><button class="btn grey mini" onclick="openSupplier(${s.i})">編輯</button></td></tr>`).join('')||'<tr><td class="muted" style="padding:16px">尚無廠商</td></tr>'}</tbody></table></div>`;};
   return `<div class="crumb">首頁 / 產品</div>
   <div style="display:flex;justify-content:space-between;align-items:center"><h1 style="margin-bottom:0">廠商管理</h1><button class="btn" onclick="openSupplier(-1)">＋ 新增廠商</button></div>
@@ -1020,10 +1039,17 @@ function vSuppliers(){
   ${seg('月結','月結廠商（匯款）','var(--blue-soft)')}
   ${seg('現金','現金廠商（付現）','var(--cash)')}`;
 }
-function openSupplier(i){const s=i>=0?suppliers[i]:{name:'',type:'月結',pricing:'固定',tax:'含稅'};const pc=s.pricing||'固定';
+function openSupplier(i){const s=i>=0?suppliers[i]:{name:'',type:'月結',pricing:'固定',tax:'含稅',basis:'收貨日'};const pc=s.pricing||'固定';
   openModal(`<h3>${i>=0?'編輯廠商':'新增廠商'}</h3>
     <div class="fld"><label>廠商名稱</label><input id="sName" value="${esc(s.name)}" placeholder="例：新鮮蔬果行"></div>
     <div class="fld"><label>結算方式</label><select id="sType"><option value="月結" ${s.type==='月結'?'selected':''}>月結（匯款，26～次月25）</option><option value="現金" ${s.type==='現金'?'selected':''}>現金（付現，1～月底）</option></select></div>
+    <div class="fld"><label>貨款歸期依據</label><select id="sBasis">
+      <option value="收貨日" ${(s.basis||'收貨日')==='收貨日'?'selected':''}>貨單日期（推薦）</option>
+      <option value="出貨日" ${s.basis==='出貨日'?'selected':''}>預計到貨日</option>
+      <option value="下單日" ${s.basis==='下單日'?'selected':''}>下單日</option></select>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">
+        <b>正常都用「貨單日期」就好</b>——收貨時照廠商貨單上的日期填，跟他們帳單一定對得起來。<br>
+        只有拿不到貨單、或某家廠商是照叫貨日算帳時，才需要改成其他兩個。</div></div>
     <div class="fld"><label>報價稅別</label><select id="sTax">
       <option value="含稅" ${(s.tax||'含稅')==='含稅'?'selected':''}>含稅價（單價已含 5% 營業稅）</option>
       <option value="未稅" ${s.tax==='未稅'?'selected':''}>未稅價（結算時另加 5% 營業稅）</option></select>
@@ -1037,9 +1063,10 @@ function openSupplier(i){const s=i>=0?suppliers[i]:{name:'',type:'月結',pricin
 function saveSupplier(i){const name=document.getElementById('sName').value.trim();const type=document.getElementById('sType').value;
   const pricing=document.getElementById('sPricing').value;
   const tax=document.getElementById('sTax').value;
+  const basis=document.getElementById('sBasis').value;
   if(!name){toast('請輸入廠商名稱');return;}
   if(suppliers.some((x,j)=>x.name===name&&j!==i)){toast('已有同名廠商');return;}
-  if(i>=0)suppliers[i]={name,type,pricing,tax};else suppliers.push({name,type,pricing,tax});
+  if(i>=0)suppliers[i]={name,type,pricing,tax,basis};else suppliers.push({name,type,pricing,tax,basis});
   persist();hideModal();toast('已儲存 ✓');render();}
 /* ====== 本週菜價（時價 · 每週報價） ====== */
 let wkSup=null,wkWeek=null;
@@ -1371,8 +1398,8 @@ function vOrdering(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id
 /* ====== 已送出的訂單 ====== */
 function vOrders(){return `<div class="crumb">首頁 / 採購</div><h1>已送出的訂單</h1>
   <div class="muted" style="margin-bottom:14px">已經送出去的叫貨單紀錄，可查金額與收貨狀態。</div>
-  ${orders.length?orders.map(o=>`<div class="card ${o.status==='已作廢'?'voided':''}" style="padding:0;overflow:hidden">
-    <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'—')}</span><br><span class="muted" style="font-size:12.5px">供應商：${o.supplier}｜下單 ${mmdd(o.date)}｜到貨 ${mmdd(o.deliveryDate)}</span></div>
+  ${(()=>{const mine=storeOrders();return mine.length?mine.map(o=>`<div class="card ${o.status==='已作廢'?'voided':''}" style="padding:0;overflow:hidden">
+    <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'—')}</span><br><span class="muted" style="font-size:12.5px">供應商：${o.supplier}｜下單 ${mmdd(o.date)}｜到貨 ${mmdd(o.deliveryDate)}${o.receivedAt?`｜<b style="color:var(--green)">貨單 ${mmdd(o.receivedAt)}</b>`:''}</span></div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="pill ${o.status==='已驗收'?'done':o.status==='已作廢'?'void':'wait'}">${o.status}</span>
         ${o.status==='已作廢'?`<button class="btn grey mini" onclick="restoreOrder('${o.no}')">還原</button>`
@@ -1380,7 +1407,7 @@ function vOrders(){return `<div class="crumb">首頁 / 採購</div><h1>已送出
             <button class="btn grey mini" title="拿到廠商退貨單時登錄" onclick="returnFromOrder('${o.no}')">↩︎ 退貨</button>`}</div></div>
     <table><tbody>${o.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="center muted">${i.qty} ${esc(i.unit)}</td><td class="right">${i.price==null?'<span class="muted">時價待計</span>':'$'+fmt(i.price*i.qty)}</td></tr>`).join('')}
       <tr><td class="right" colspan="2"><b>合計</b></td><td class="right"><b>$${fmt(orderTotal(o))}</b></td></tr></tbody></table></div>`).join('')
-    :`<div class="card"><div class="empty">還沒有訂單。</div></div>`}`;}
+    :`<div class="card"><div class="empty">${esc(curStoreName())} 還沒有訂單。</div></div>`;})()}`;}
 /* ====== 驗收列表 ====== */
 
 function openEditOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
@@ -1404,14 +1431,18 @@ function voidOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
   o.status='已作廢';cloudSaveOrder(o);persist();hideModal();toast('已作廢');render();}
 function restoreOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
   o.status='待驗收';cloudSaveOrder(o);persist();toast('已還原為待收貨');render();}
-function vReceiving(){const wait=orders.filter(o=>o.status!=='已驗收'&&o.status!=='已作廢');
+function vReceiving(){const wait=storeOrders().filter(o=>o.status!=='已驗收'&&o.status!=='已作廢');
   return `<div class="crumb">首頁 / 收貨</div><h1>收貨確認</h1>
-  <div class="card"><span class="muted">按「確認收貨」代表這張單貨已到，會反映在「貨款結算」的收貨狀態。</span></div>
+  <div class="card"><span class="muted">按「確認收貨」代表這張單貨已到，金額才會算進「貨款結算」。<br>
+    <b style="color:var(--ink)">貨單日期請照廠商貨單上印的日期填</b>（預設今天）——這樣月底跟廠商對帳一定合得起來，跨月那幾天尤其重要。</span></div>
   ${wait.length?wait.map(o=>{const tbd=orderTBD(o);
     return `<div class="card" style="padding:0;overflow:hidden">
     <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'')} · ${o.supplier}</span>
       ${tbd?' <span class="pill c">時價 · 請填實際單價</span>':''}<br><span class="muted" style="font-size:12.5px">到貨 ${mmdd(o.deliveryDate)}</span></div>
-      <button class="btn green mini" onclick="receive('${o.no}')">✓ 確認收貨</button></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label class="muted" style="font-size:12px">貨單日期</label>
+        <input type="date" id="rd_${o.no}" value="${isoAt(0)}" style="width:150px;display:inline-block;padding:8px 10px;font-size:13px" title="照廠商貨單上的日期填">
+        <button class="btn green mini" onclick="receive('${o.no}')">✓ 確認收貨</button></div></div>
     ${tbd?`<div style="padding:12px 20px 0;font-size:12.5px" class="muted">這家是時價廠商，請照貨單填入當天實際單價，金額才會進貨款結算。</div>`:''}
     ${(tbd||o.photo)?`<div style="padding:12px 20px 0">
       ${o.photo?`<img src="${o.photo}" onclick="viewPhoto('${o.no}')" style="max-height:200px;max-width:100%;border-radius:12px;cursor:zoom-in;display:block;margin-bottom:9px">`:''}
@@ -1468,7 +1499,9 @@ function receive(no){const o=orders.find(x=>x.no===no);if(!o)return;
   document.querySelectorAll(`[data-ip^="${no}|"]`).forEach(inp=>{const idx=+inp.dataset.ip.split('|')[1];
     const v=parseFloat(inp.value);if(isNaN(v)){missing=true;}else o.items[idx].price=v;});
   if(missing){toast('請先填完所有時價品項的單價');return;}
-  o.status='已驗收';cloudSaveOrder(o);persist();toast('已確認收貨 ✓');render();}
+  const di=document.getElementById('rd_'+no);
+  o.receivedAt=(di&&di.value)||isoAt(0);
+  o.status='已驗收';cloudSaveOrder(o);persist();toast('已確認收貨 ✓　貨款算在 '+mmdd(o.receivedAt)+' 那一期');render();}
 /* ====== 工具 ====== */
 let seq=load('p_seq')||1003;
 async function orderSeq(){
