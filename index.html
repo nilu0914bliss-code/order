@@ -119,6 +119,9 @@
   .storeopt.sel{border-color:var(--green);background:var(--green-tint);}
   .storeopt .tick{margin-left:auto;color:var(--green);font-size:19px;opacity:0;}
   .storeopt.sel .tick{opacity:1;}
+  .switchbtn{width:100%;padding:13px;border:1.5px dashed var(--line);border-radius:16px;background:#fff;
+    color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:9px;transition:.15s;}
+  .switchbtn:hover{border-color:var(--green);color:var(--green);}
   .storeopt .last{display:block;font-size:11.5px;color:var(--green);font-weight:600;margin-top:2px;}
   .gerr{background:#FDECEA;color:#B3261E;border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px;line-height:1.6;}
   @supports(padding:env(safe-area-inset-top)){
@@ -507,14 +510,22 @@ function renderGate(){
       b.innerHTML=`<div class="gspin"></div><div class="muted" style="margin-top:16px;text-align:center">正在讀取門市清單…</div>
         <div style="margin-top:18px"><button class="btn grey mini" style="width:100%" onclick="doLogout()">登出</button></div>`;return;}
     if(!list.find(x=>x.id===gatePick))gatePick=(list.find(x=>x.id===last)||list[0]).id;
+    const hasLast=!!list.find(x=>x.id===last);
+    // 沒有上次紀錄（第一次用）就直接攤開全部
+    if(!hasLast)gateExpand=true;
+    const opt=x=>`<button class="storeopt ${x.id===gatePick?'sel':''}" onclick="gatePick='${x.id}';renderGate()">
+        <span>📍</span><span>${esc(x.name)}${x.id===last?'<span class="last">✓ 上次就是這間</span>':''}</span><span class="tick">✓</span></button>`;
+    const cur=list.find(x=>x.id===gatePick);
+    const others=list.filter(x=>x.id!==gatePick);
     b.innerHTML=`<h2>今天在哪一間店？</h2>
-      <div class="muted" style="margin-bottom:18px;font-size:13.5px">選錯的話貨會送錯店，所以每次開啟都確認一下</div>
-      ${list.map(x=>`<button class="storeopt ${x.id===gatePick?'sel':''}" onclick="gatePick='${x.id}';renderGate()">
-        <span>📍</span><span>${esc(x.name)}${x.id===last?'<span class="last">✓ 上次就是這間</span>':''}</span><span class="tick">✓</span></button>`).join('')}
+      <div class="muted" style="margin-bottom:18px;font-size:13.5px">${gateExpand?'選一間店，按下面確認':'不是這間的話點下面換一間'}</div>
+      ${opt(cur)}
+      ${gateExpand?others.map(opt).join(''):
+        `<button class="switchbtn" onclick="gateExpand=true;renderGate()">換一間店　<span style="font-size:11px">▼</span></button>`}
       <button class="btn" style="width:100%;margin-top:12px" onclick="enterApp()">確認，開始叫貨</button>
       <button class="btn grey mini" style="width:100%;margin-top:9px" onclick="doLogout()">登出</button>`;return;}
 }
-let gatePick='';
+let gatePick='', gateExpand=false;
 /* 連不到雲端時不要卡在「連線中…」 */
 setTimeout(()=>{ if(gateStep==='loading'){ gateStep='error';
   gateErrMsg='連不到雲端資料庫。可能是網路不通，或這台裝置擋掉了 Google 服務。請確認網路後重新整理。';
@@ -535,12 +546,13 @@ window.doLogin=async function(){
 window.doLogout=async function(){ try{await CLOUD.logout();}catch(e){} gatePick='';gateErrMsg='';location.reload(); };
 window.enterApp=function(){
   if(!gatePick)return;
+  gateExpand=false;
   selStore=gatePick; CLOUD_ON=true;
   store.set('p_selstore',JSON.stringify(selStore));
   document.getElementById('gate').classList.add('hide');
   cloudBind(); render();
 };
-window.switchStore=function(){ CLOUD_ON=false; gateStep='store'; gatePick=selStore;
+window.switchStore=function(){ CLOUD_ON=false; gateStep='store'; gatePick=selStore; gateExpand=true;
   document.getElementById('gate').classList.remove('hide'); renderGate(); };
 
 /* 模組載入前先把登入框畫出來，看起來比較不像當掉 */
