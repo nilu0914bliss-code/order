@@ -354,7 +354,7 @@ function loadDemo(){
   persist();toast('示範資料已載入 ✓');go('dashboard');
 }
 
-const BK_KEYS=['p_products','p_suppliers','p_weekly','p_orders','p_matman','p_cart','p_manualrev','p_seq','p_favs','p_lastqty','p_projrev','p_returns','p_rseq','p_selstore','p_selmonth','p_dataver'];
+const BK_KEYS=['p_products','p_suppliers','p_weekly','p_orders','p_matman','p_cart','p_manualrev','p_seq','p_favs','p_lastqty','p_projrev','p_returns','p_rseq','p_selstore','p_selstorename','p_selmonth','p_dataver'];
 function exportBackup(){
   const data={};BK_KEYS.forEach(k=>{const v=store.get(k);if(v!=null)data[k]=v;});
   const payload={app:'叫貨系統',version:1,exportedAt:new Date().toISOString(),store:curStoreName(),data};
@@ -509,18 +509,24 @@ function renderGate(){
     if(!list.length){
       b.innerHTML=`<div class="gspin"></div><div class="muted" style="margin-top:16px;text-align:center">正在讀取門市清單…</div>
         <div style="margin-top:18px"><button class="btn grey mini" style="width:100%" onclick="doLogout()">登出</button></div>`;return;}
-    if(!list.find(x=>x.id===gatePick))gatePick=(list.find(x=>x.id===last)||list[0]).id;
-    const hasLast=!!list.find(x=>x.id===last);
-    // 沒有上次紀錄（第一次用）就直接攤開全部
-    if(!hasLast)gateExpand=true;
+    // 上次的門市名稱也記在這台裝置，清單還沒讀到也能馬上顯示
+    const lastName=load('p_selstorename');
+    if(!list.find(x=>x.id===gatePick)&&gatePick!==last){
+      gatePick=(last&&(list.find(x=>x.id===last)||lastName))?last:(list[0]||{}).id;}
+    const hasLast=!!last&&(!!list.find(x=>x.id===last)||!!lastName);
+    // 每次重畫都重算，不要把展開狀態鎖住
+    const expand=gateExpand||!hasLast;
     const opt=x=>`<button class="storeopt ${x.id===gatePick?'sel':''}" onclick="gatePick='${x.id}';renderGate()">
         <span>📍</span><span>${esc(x.name)}${x.id===last?'<span class="last">✓ 上次就是這間</span>':''}</span><span class="tick">✓</span></button>`;
-    const cur=list.find(x=>x.id===gatePick);
-    const others=list.filter(x=>x.id!==gatePick);
+    let cur=list.find(x=>x.id===gatePick);
+    if(!cur&&last&&lastName){cur={id:last,name:lastName};gatePick=last;}  // 清單還沒到，先用記住的名字
+    if(!cur)cur=list[0];
+    const others=list.filter(x=>x.id!==cur.id);
+    const loading=fb.status==='loading'&&!list.find(x=>x.id===cur.id);
     b.innerHTML=`<h2>今天在哪一間店？</h2>
-      <div class="muted" style="margin-bottom:18px;font-size:13.5px">${gateExpand?'選一間店，按下面確認':'不是這間的話點下面換一間'}</div>
+      <div class="muted" style="margin-bottom:18px;font-size:13.5px">${expand?'選一間店，按下面確認':'不是這間的話點下面換一間'}</div>
       ${opt(cur)}
-      ${gateExpand?others.map(opt).join(''):
+      ${expand?(loading?'<div class="muted" style="text-align:center;padding:10px 0;font-size:13px">讀取其他門市中…</div>':others.map(opt).join('')):
         `<button class="switchbtn" onclick="gateExpand=true;renderGate()">換一間店　<span style="font-size:11px">▼</span></button>`}
       <button class="btn" style="width:100%;margin-top:12px" onclick="enterApp()">確認，開始叫貨</button>
       <button class="btn grey mini" style="width:100%;margin-top:9px" onclick="doLogout()">登出</button>`;return;}
@@ -549,6 +555,7 @@ window.enterApp=function(){
   gateExpand=false;
   selStore=gatePick; CLOUD_ON=true;
   store.set('p_selstore',JSON.stringify(selStore));
+  store.set('p_selstorename',JSON.stringify(curStoreName()));
   document.getElementById('gate').classList.add('hide');
   cloudBind(); render();
 };
