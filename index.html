@@ -1389,6 +1389,12 @@ function openProduct(id){const p=id?products.find(x=>x.id===id):{name:'',spec:''
     <div class="fld"><label>供應商</label><select id="pSup" onchange="pTaxCalc()">${suppliers.map(s=>`<option value="${esc(s.name)}" ${p.supplier===s.name?'selected':''}>${esc(s.name)}${s.tax==='未稅'?'（未稅報價）':''}</option>`).join('')}</select></div>
     <div class="grid2"><div class="fld"><label>類別（選填）</label><input id="pCat" value="${esc(p.cat||'')}" placeholder="肉品"></div>
       <div class="fld"><label>單價</label><input id="pPrice" type="number" step="any" value="${p.price||''}" placeholder="0" oninput="pTaxCalc()"></div></div>
+    <div class="fld"><label>也可以用「件」叫貨（選填）</label>
+      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <span class="muted" style="font-size:13px">1 件 ＝</span>
+        <input id="pAltF" type="number" step="any" style="width:110px" value="${(p.alt&&p.alt.f>0)?p.alt.f:''}" placeholder="留空＝沒有">
+        <span class="muted" style="font-size:13px">${esc(p.unit||'單位')}</span></div>
+      <div class="muted" style="font-size:11.5px;margin-top:7px">填了之後，叫貨畫面數量旁邊會多一顆「${esc(p.unit||'單位')} ⇄ 件」切換鈕；收貨時一樣照貨單填實際數量與單價。</div></div>
     <div class="fld"><label>我填的這個單價是</label>
       <div style="display:flex;gap:8px">
         <label class="basisopt"><input type="radio" name="pBasis" value="含稅" ${supTax(p.supplier||(suppliers[0]||{}).name)==='含稅'?'checked':''} onchange="pTaxCalc()"> 含稅價</label>
@@ -1413,7 +1419,9 @@ function pTaxCalc(){const h=document.getElementById('pTaxHint');if(!h)return;
     <div style="margin-top:5px;color:var(--green)">${esc(sup)} 設定為 <b>${sb}報價</b> → 系統存 <b>$${fmt2(stored)}</b>${b===sb?'':'（已自動幫你換算）'}</div>`;}
 function saveProduct(id){const name=document.getElementById('pName').value.trim();const price=pStoredPrice();
   if(!name){toast('請輸入商品名稱');return;}
-  const data={name,spec:document.getElementById('pSpec').value.trim(),unit:document.getElementById('pUnit').value.trim()||'件',supplier:pSupNow(),cat:document.getElementById('pCat').value.trim()||'未分類',price};
+  const af=parseFloat((document.getElementById('pAltF')||{}).value);
+  const data={name,spec:document.getElementById('pSpec').value.trim(),unit:document.getElementById('pUnit').value.trim()||'件',supplier:pSupNow(),cat:document.getElementById('pCat').value.trim()||'未分類',price,
+    alt:(!isNaN(af)&&af>0)?{u:'件',f:af}:{u:'',f:0}};   // f=0 代表「這項沒有件」，Firebase 不吃 null 所以用 0 當關掉
   if(id){Object.assign(products.find(x=>x.id===id),data);}else{products.push({id:'x'+Date.now(),...data});}
   persist();hideModal();toast('已儲存 ✓');render();}
 function delProduct(id){products=products.filter(p=>p.id!==id);persist();hideModal();toast('已刪除');render();}
@@ -1426,13 +1434,14 @@ function toggleFav(pid){const k=`${selStore}|${pid}`;
 function defQty(pid){return lastQty[`${selStore}|${pid}`]||1;}
 /* ===== 一種商品兩種叫法（台斤／件），1 件 = 30 台斤 =====
    菜類單位一律台斤（Nina：「我們菜類的單位沒有公斤的單位 都是台斤」） */
-const ALT_30=['油菜','青江菜','鵝白菜','山東白菜','櫛瓜'];
+const ALT_SET={'油菜':30,'青江菜':30,'鵝白菜':30,'山東白菜':30,'櫛瓜':30,'高麗菜':30,'空心菜':30};
 function migrateAltUnits(){let n=0;
   products.forEach(p=>{
-    if(p.supplier!=='源發禾鮮商行'||!ALT_30.includes(p.name))return;
-    if(p.alt)return;                                  // 已經處理過就不再動
-    if(!['件','箱','公斤'].includes(p.unit))return;    // 已被改成別的就尊重現況
-    p.unit='台斤';p.alt={u:'件',f:30};n++;});
+    if(p.supplier!=='源發禾鮮商行')return;
+    const f=ALT_SET[p.name];if(!f)return;
+    if(['件','箱','公斤'].includes(p.unit)){p.unit='台斤';n++;}   // 菜類單位一律台斤
+    if(!('alt' in p)&&p.unit==='台斤'){p.alt={u:'件',f};n++;}     // 她自己關掉的（alt.f=0）不會被加回來
+  });
   return n;}
 function altOf(p){return (p&&p.alt&&p.alt.u&&p.alt.f>0)?p.alt:null;}
 function usingAlt(pid){return !!cartUnit[pid];}
