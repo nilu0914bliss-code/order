@@ -458,6 +458,7 @@ function cloudBind(){
     else if(products.length)cloudPushShared();
     if(migrateAltUnits()){persistLocal();cloudPushShared();}
     if(purgeOldAlias()){persistLocal();cloudPushShared();}
+    if(dedupeProducts()){persistLocal();cloudPushShared();}
     render();}));
   cloudUnsub.push(CLOUD.watch('shared/suppliers',v=>{
     if(v&&Object.keys(v).length)suppliers=Object.keys(v).map(k=>v[k]);
@@ -1174,7 +1175,7 @@ function vWeekly(){
       <td class="right">${diff==null?'':(diff>0?`<span style="color:var(--red)">▲ $${fmt(diff)}</span>`:diff<0?`<span style="color:var(--green)">▼ $${fmt(-diff)}</span>`:'<span class="muted">持平</span>')}</td></tr>`;}).join('');
   return `<div class="crumb">首頁 / 日常叫貨</div>
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin-bottom:0">${esc(wkSup.replace('農產行','').replace('商行',''))}本週菜價上傳</h1>
-    <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn line" onclick="openVerify()">🔍 核對價格</button><button class="btn" onclick="openImport()">📤 上傳價目表</button></div></div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn line" onclick="showPriceChanges(wkSup,wkWeek)">📈 本週調價</button><button class="btn line" onclick="openVerify()">🔍 核對價格</button><button class="btn" onclick="openImport()">📤 上傳價目表</button></div></div>
   <div class="muted" style="margin:8px 0 14px">時價廠商每週二給新價目表（週期為週三～次週二），登錄後這一週叫貨都會自動套用。廠商傳 Excel／CSV 可直接上傳，不用手打。</div>
   <div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap">
     <div class="field" style="min-width:200px"><label>廠商</label><select id="wkSupSel">${spot.map(s=>`<option ${wkSup===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
@@ -1186,6 +1187,46 @@ function vWeekly(){
     :`<div class="empty">這家廠商還沒有商品，請先到「商品與價格」新增。</div>`}</div>
   ${prods.length?`<div style="text-align:right"><button class="btn" onclick="saveWeekly()">儲存本週菜價</button></div>`:''}`;
 }
+/* ===== 調價通知：拿這一週跟上一週比，廠商不用配合也看得到漲跌 ===== */
+function prevWeekOf(w){const d=new Date(w+'T00:00:00');d.setDate(d.getDate()-7);return isoOf(d);}
+function priceChanges(sup,w){
+  const pw=prevWeekOf(w),up=[],down=[],newly=[],stopped=[],same=[];
+  products.filter(p=>p.supplier===sup).forEach(p=>{
+    const a=weeklyPrice(sup,pw,p.id),b=weeklyPrice(sup,w,p.id);
+    if(b==null)return;                       // 這週沒報價，不算
+    if(a==null){if(b>0)newly.push({p,now:b});return;}
+    if(b===0&&a>0){stopped.push({p,was:a});return;}
+    if(a===0&&b>0){newly.push({p,now:b});return;}
+    const d=Math.round((b-a)*100)/100;
+    if(d>0)up.push({p,was:a,now:b,d});
+    else if(d<0)down.push({p,was:a,now:b,d:-d});
+    else same.push(p);});
+  const by=(x,y)=>y.d-x.d;up.sort(by);down.sort(by);
+  return {pw,up,down,newly,stopped,same};}
+function changeCount(sup,w){const c=priceChanges(sup,w);return c.up.length+c.down.length+c.newly.length+c.stopped.length;}
+function showPriceChanges(sup,w){
+  const c=priceChanges(sup,w||wkWeek);const wk=w||wkWeek;
+  const n=c.up.length+c.down.length+c.newly.length+c.stopped.length;
+  const li=(arr,color,sign)=>`<table style="font-size:13px;width:100%"><tbody>${arr.map(x=>`<tr>
+    <td><b>${esc(x.p.name)}</b> <span class="muted" style="font-size:11.5px">/ ${esc(x.p.unit)}</span></td>
+    <td class="right muted" style="width:150px">${x.was!=null?'$'+fmt(x.was)+' →':''} <b style="color:${color}">${x.now!=null?'$'+fmt(x.now):'停供'}</b></td>
+    <td class="right" style="width:82px;color:${color};font-weight:700">${x.d!=null?sign+'$'+fmt(x.d):''}</td></tr>`).join('')}</tbody></table>`;
+  const sec=(t,color,arr,sign)=>arr.length?`<div style="background:#fff;border-radius:12px;border-left:5px solid ${color};padding:12px 14px;margin-bottom:10px">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:7px">${t}（${arr.length}）</div>${li(arr,color,sign||'')}</div>`:'';
+  openModal(`<h3>📈 ${esc(shortSup(sup))}調價通知</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.7">
+      <b style="color:var(--ink)">生效 ${mmdd(wk)}（三）～ ${mmdd(weekEndOf(wk))}</b>　·　跟上一週（${mmdd(c.pw)} 那週）比。</div>
+    ${n?`<div style="background:var(--amber-soft);color:#B9741C;border-radius:14px;padding:14px 16px;font-weight:800;font-size:15px;margin-bottom:14px">
+      這週有 ${n} 項變動：${c.up.length} 項漲、${c.down.length} 項跌${c.newly.length?`、${c.newly.length} 項新報價`:''}${c.stopped.length?`、${c.stopped.length} 項停供`:''}</div>`
+     :`<div style="background:var(--green-soft);color:var(--green);border-radius:14px;padding:14px 16px;font-weight:800;font-size:15px;margin-bottom:14px">這週價格跟上週完全一樣，沒有調價</div>`}
+    <div style="max-height:52vh;overflow:auto;background:#FAF7F2;padding:10px;border-radius:12px">
+      ${sec('🔺 漲價','#C0392B',c.up,'＋')}
+      ${sec('🔻 降價','#1B6B47',c.down,'－')}
+      ${sec('🆕 這週新報價','#EE9528',c.newly)}
+      ${sec('🚫 這週停供','#8E8981',c.stopped)}
+      ${c.same.length?`<div class="muted" style="font-size:12.5px;padding:8px 4px">另外 ${c.same.length} 項價格沒變。</div>`:''}
+    </div>
+    <div class="modact"><button class="btn" onclick="hideModal()">知道了</button></div>`,true);}
 /* ---- 價目表匯入（Excel / CSV / 貼上） ---- */
 let importRows=[];let impMode='import';
 function openImport(){impMode='import';
@@ -1449,7 +1490,8 @@ function applyImport(){let n=0,created=0,uch=0,na=0,skipped=0;
     weekly[`${wkSup}|${wkWeek}|${pid}`]=it.na?0:it.price;
     if(it.na)na++;else n++;});
   persist();hideModal();
-  toast(`已登錄 ${n} 筆價格${na?`・${na} 項本週無供應`:''}${created?`・新增 ${created} 項`:''}${uch?`・改了 ${uch} 個單位`:''} ✓`);render();}
+  toast(`已登錄 ${n} 筆價格${na?`・${na} 項本週無供應`:''}${created?`・新增 ${created} 項`:''}${uch?`・改了 ${uch} 個單位`:''} ✓`);
+  render();setTimeout(()=>showPriceChanges(wkSup,wkWeek),350);}
 function saveWeekly(){document.querySelectorAll('[data-wk]').forEach(i=>{const k=`${wkSup}|${wkWeek}|${i.dataset.wk}`;
   const v=i.value.trim()===''?null:parseFloat(i.value);
   if(v===null||isNaN(v))delete weekly[k];else weekly[k]=v;});
@@ -1520,6 +1562,27 @@ function migrateAltUnits(){let n=0;
     if(!('alt' in p)&&p.unit==='台斤'){p.alt={u:'件',f};n++;}     // 她自己關掉的（alt.f=0）不會被加回來
   });
   return n;}
+/* 從 CocoMart 兩間店匯進來時，有兩筆重複：規格欄只是把單位再抄一次
+   （紅K絲 規格「台斤」、杏鮑菇/D 規格「袋」）。同名同單位同價，留一筆就好，
+   不然叫貨畫面會出現兩個一模一樣的東西，價格也只會落在其中一筆。 */
+const UNITWORD=['袋','台斤','斤','公斤','包','箱','件','盒','瓶','把','板','顆','根','粒','桶','罐'];
+function dedupeProducts(){const kill=[];
+  products.forEach(p=>{
+    if(!p.spec||!UNITWORD.includes(String(p.spec).trim()))return;
+    // 同名的另一筆，規格不是「單純把單位再抄一次」的那一筆才是正本
+    const twin=products.find(q=>q!==p&&q.supplier===p.supplier&&q.name===p.name
+      &&!UNITWORD.includes(String(q.spec||'').trim()));
+    if(twin)kill.push([p,twin]);});
+  if(!kill.length)return 0;
+  kill.forEach(([dead,keep])=>{
+    // 這一筆身上如果有本週價，搬到留下來的那一筆，不要弄丟
+    Object.keys(weekly).forEach(k=>{const parts=k.split('|');
+      if(parts[2]===dead.id){const nk=parts[0]+'|'+parts[1]+'|'+keep.id;
+        if(weekly[nk]==null)weekly[nk]=weekly[k];delete weekly[k];}});
+    Object.keys(favs).forEach(k=>{if(k.endsWith('|'+dead.id))delete favs[k];});
+    Object.keys(cart).forEach(k=>{if(k===dead.id)delete cart[k];});
+    products=products.filter(x=>x!==dead);});
+  return kill.length;}
 function altOf(p){return (p&&p.alt&&p.alt.u&&p.alt.f>0)?p.alt:null;}
 function usingAlt(pid){return !!cartUnit[pid];}
 function unitOf(p){return usingAlt(p.id)&&altOf(p)?p.alt.u:p.unit;}
@@ -1803,6 +1866,7 @@ window.addEventListener('error',e=>{try{toast('畫面出錯了：'+(e.message||'
 window.addEventListener('unhandledrejection',e=>{try{toast('操作沒完成：'+((e.reason&&e.reason.message)||'未知錯誤'));}catch(_){}});
 migrateAltUnits();
 purgeOldAlias();
+dedupeProducts();
 render();
 setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
 </script>
