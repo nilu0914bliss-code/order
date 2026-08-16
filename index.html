@@ -243,7 +243,7 @@
     <div class="navgrp">🛒 日常叫貨</div>
     <button class="navitem" data-page="fav">⭐ 我的最愛</button>
     <button class="navitem" data-page="products">我要叫貨</button>
-    <button class="navitem" data-page="weekly">本週菜價上傳</button>
+    <button class="navitem" data-page="weekly">興裕本週菜價上傳</button>
     <button class="navitem" data-page="orders">已送出的訂單</button>
     <button class="navitem" data-page="receiving">收貨確認</button>
     <button class="navitem" data-page="returns">退貨／折讓</button>
@@ -591,7 +591,11 @@ function badges(){const c=Object.values(cart).reduce((s,q)=>s+(q>0?1:0),0);setBa
 function setBadge(id,n){const e=document.getElementById(id);if(!e)return;e.textContent=n;e.style.display=n?'block':'none';}
 function curStoreName(){const s=STORES.find(x=>x.id===selStore);return s?s.name:'—';}
 function fillStoreSwitch(){const sel=document.getElementById('gStore');if(!sel)return;sel.innerHTML=STORES.map(s=>`<option value="${s.id}" ${selStore===s.id?'selected':''}>${esc(s.name)}</option>`).join('');sel.onchange=e=>{selStore=e.target.value;persist();render();};}
+function shortSup(n){return String(n||'').replace('農產行','').replace('商行','').replace('有限公司','');}
 function render(){badges();fillStoreSwitch();
+  (()=>{const nv=document.querySelector('.navitem[data-page="weekly"]');if(!nv)return;
+    const sp=suppliers.filter(x=>(x.pricing||'')==='週報');
+    nv.textContent=(sp.length===1?shortSup(sp[0].name):'')+'本週菜價上傳';})();
   const ab=document.getElementById('acctStore');if(ab)ab.textContent=curStoreName();document.getElementById('content').innerHTML=({fav:vFav,dashboard:vDash,payment:vPayment,supdetail:vSupDetail,products:vProducts,weekly:vWeekly,prodadmin:vProdAdmin,suppliers:vSuppliers,ordering:vOrdering,orders:vOrders,receiving:vReceiving,returns:vReturns}[page])();bind();}
 function openModal(html,wide){const b=document.getElementById('modalbox');b.innerHTML=html;b.classList.toggle('wide',!!wide);document.getElementById('modalbg').classList.add('show');}
 function hideModal(){document.getElementById('modalbg').classList.remove('show');}
@@ -892,8 +896,16 @@ function vSupDetail(){
     auto+=a;man+=m;retSum+=r;
     const wk=weekday(d),we=(wk==='六'||wk==='日');
     return `<tr${(a||m||r)?'':' style="opacity:.55"'}><td><b>${mmdd(d)}</b> <span class="muted">(${wk})</span>${we?'':''}
-        ${ords.map(o=>`<div class="muted" style="font-size:11.5px">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　✓已收</div>`).join('')}
-        ${pend.map(o=>`<div style="font-size:11.5px;color:var(--orange-d)">· ${o.no}　${o.items.map(i=>esc(i.name)+' ×'+i.qty).join('、')}　待收貨 $${fmt(orderTotal(o))}（未計入）</div>`).join('')}
+        ${ords.map(o=>`<div style="font-size:11.5px;margin-top:6px">
+          <span class="muted">· ${o.no}　✓已收</span>　<b>$${fmt(orderTotal(o))}</b>
+          <div style="margin-left:11px;border-left:2px solid var(--line);padding-left:9px;margin-top:2px">
+            ${(o.items||[]).map(i=>`<div class="muted">${esc(i.name)}　${i.qty} ${esc(i.unit)}${i.price==null?'　<span style="color:var(--amber)">單價未填</span>':`　× $${fmt2(i.price)} ＝ <b style="color:var(--ink)">$${fmt(i.price*i.qty)}</b>`}</div>`).join('')}
+          </div></div>`).join('')}
+        ${pend.map(o=>`<div style="font-size:11.5px;color:var(--orange-d);margin-top:6px">
+          · ${o.no}　待收貨 $${fmt(orderTotal(o))}（未計入）
+          <div style="margin-left:11px;border-left:2px solid #F0DCC0;padding-left:9px;margin-top:2px">
+            ${(o.items||[]).map(i=>`<div>${esc(i.name)}　${i.qty} ${esc(i.unit)}${i.price==null?'　時價，收貨時計':`　× $${fmt2(i.price)} ＝ $${fmt(i.price*i.qty)}`}</div>`).join('')}
+          </div></div>`).join('')}
         ${rts.map(v=>`<div style="font-size:11.5px;color:var(--red)"><span style="cursor:pointer" onclick="event.stopPropagation();openReturn('${v.id}')">↩︎ ${esc(v.kind)}單 ${esc(v.docNo||v.id)}　${(v.items||[]).map(i=>esc(i.name)+' ×'+i.qty).join('、')}　－$${fmt(retTotal(v))}</span>${v.photo?` <a style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();rViewPhoto('${v.id}')">📷 看退貨單</a>`:''}</div>`).join('')}</td>
       <td class="right"><span class="mlab">叫貨</span>${a?'$'+fmt(a):'<span class="muted">—</span>'}</td>
       <td class="right">${r?`<span class="mlab">退貨／折讓</span><b style="color:var(--red)">－$${fmt(r)}</b>`:''}</td>
@@ -1000,9 +1012,10 @@ function openReturnModal(){
   openModal(`<h3>${rDraft.id?'編輯':'登錄'}退貨／折讓單</h3>
   <div class="muted" style="font-size:12.5px;margin:-6px 0 14px;line-height:1.6">拍一張廠商開的退貨單，填上要扣的金額就好。</div>
   <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <div class="fld" style="flex:0 0 130px"><label>單據類型</label><select id="rKind">
+    <div class="fld" style="flex:1 1 210px"><label>單據類型</label><select id="rKind" onchange="rChangeSup()">
       <option value="退貨" ${rDraft.kind==='退貨'?'selected':''}>退貨單</option>
-      <option value="折讓" ${rDraft.kind==='折讓'?'selected':''}>折讓單</option></select></div>
+      <option value="折讓" ${rDraft.kind==='折讓'?'selected':''}>折讓單</option></select>
+      <div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">${rDraft.kind==='折讓'?'貨留著，只是錢少付（折價、短少、算錯）':'貨實際退還給廠商（叫錯、送錯、壞掉）'}</div></div>
     <div class="fld" style="flex:1 1 220px"><label>廠商</label><select id="rSup" onchange="rChangeSup()">
       ${suppliers.map(x=>`<option value="${esc(x.name)}" ${x.name===sup?'selected':''}>${esc(x.name)}（${x.type}）</option>`).join('')}</select></div>
     <div class="fld" style="flex:0 0 165px"><label>銷退日期</label><input id="rDate" type="date" value="${rDraft.date}" onchange="rChangeSup()"></div>
@@ -1078,7 +1091,13 @@ function vReturns(){
   return `<div class="crumb">首頁 / 付款</div>
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
     <h1 style="margin-bottom:0">退貨／折讓</h1><button class="btn" onclick="newReturn()">＋ 登錄退貨單</button></div>
-  <div class="muted" style="margin:8px 0 16px;line-height:1.7">拿到廠商開的<b>退貨單／折讓單</b>後補登在這裡。原本的叫貨單不用改，這張單會依<b>銷退日期</b>落到對應的結算區間，直接從該廠商應付貨款扣掉。</div>
+  <div class="muted" style="margin:8px 0 14px;line-height:1.7">拿到廠商開的<b>退貨單／折讓單</b>後補登在這裡。原本的叫貨單不用改，這張單會依<b>銷退日期</b>落到對應的結算區間，直接從該廠商應付貨款扣掉。</div>
+  <div class="card" style="background:#FAF7F2;box-shadow:none;border:1px solid var(--line);line-height:1.85">
+    <div style="font-weight:700;margin-bottom:8px;font-size:14.5px">兩種單據差在「貨有沒有退回去」</div>
+    <div style="font-size:13.5px"><span class="pill c">退貨單</span>　貨<b>實際退還</b>給廠商 —— 叫錯、送錯、多送、壞掉整批退。</div>
+    <div style="font-size:13.5px;margin-top:6px"><span class="pill m">折讓單</span>　貨<b>留著</b>，只是錢少付 —— 品質差了點談好折價、數量短少（叫 10 斤只送 8 斤）、價格算錯要扣。</div>
+    <div class="muted" style="font-size:12px;margin-top:9px">兩種在系統裡的算法完全一樣，都是從當期貨款扣掉；<b style="color:var(--ink)">照廠商給妳的那張單上寫的選就好</b>。分開只是為了月底對帳時一眼看得出是哪一種。</div>
+  </div>
   <div class="card" style="display:flex;gap:14px;align-items:end;flex-wrap:wrap">
     <div class="field" style="max-width:180px"><label>月份篩選</label>
       <select onchange="rFilter=this.value;render()"><option value="all" ${rFilter==='all'?'selected':''}>全部</option>
@@ -1154,7 +1173,7 @@ function vWeekly(){
       <td class="right">${diff==null?'':(diff>0?`<span style="color:var(--red)">▲ $${fmt(diff)}</span>`:diff<0?`<span style="color:var(--green)">▼ $${fmt(-diff)}</span>`:'<span class="muted">持平</span>')}</td></tr>`;}).join('');
   return `<div class="crumb">首頁 / 日常叫貨</div>
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin-bottom:0">${esc(wkSup.replace('農產行','').replace('商行',''))}本週菜價上傳</h1>
-    <button class="btn" onclick="openImport()">📤 上傳價目表</button></div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn line" onclick="openVerify()">🔍 核對價格</button><button class="btn" onclick="openImport()">📤 上傳價目表</button></div></div>
   <div class="muted" style="margin:8px 0 14px">時價廠商每週二給新價目表（週期為週三～次週二），登錄後這一週叫貨都會自動套用。廠商傳 Excel／CSV 可直接上傳，不用手打。</div>
   <div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap">
     <div class="field" style="min-width:200px"><label>廠商</label><select id="wkSupSel">${spot.map(s=>`<option ${wkSup===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
@@ -1167,8 +1186,8 @@ function vWeekly(){
   ${prods.length?`<div style="text-align:right"><button class="btn" onclick="saveWeekly()">儲存本週菜價</button></div>`:''}`;
 }
 /* ---- 價目表匯入（Excel / CSV / 貼上） ---- */
-let importRows=[];
-function openImport(){
+let importRows=[];let impMode='import';
+function openImport(){impMode='import';
   openModal(`<h3>上傳 ${esc(wkSup)} 價目表</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">套用週次：<b style="color:var(--ink)">${mmdd(wkWeek)}～${mmdd(weekEndOf(wkWeek))}</b><br>
       支援 Excel（.xlsx/.xls）與 CSV。系統會自動找「品名」和「價格」欄位。</div>
@@ -1260,12 +1279,14 @@ function parsePasted(){const t=(document.getElementById('impText')||{}).value||'
 function normName(s){return String(s).replace(/[\s　]/g,'').replace(/[（(].*?[)）]/g,'');}
 // 完全一樣才算「對到」；只是名字有包含關係（例：加工紅蘿蔔絲 vs 紅蘿蔔）只能當「猜的」，一定要人確認，
 // 不然會把 A 的價格填到 B 上，貨款就錯了
+// 只把空白拿掉；括號裡的字不能省——「洋蔥」$24/斤 和「洋蔥(台)」$450/袋 是兩種東西
+function tightName(s){return String(s||'').replace(/[\s　]/g,'');}
 function matchExact(name,list){let m=list.find(p=>p.name===name);if(m)return m.id;
-  const n=normName(name);m=list.find(p=>normName(p.name)===n);return m?m.id:'';}
+  const n=tightName(name);m=list.find(p=>tightName(p.name)===n);return m?m.id:'';}
 function matchFuzzy(name,list){const n=normName(name);
   const m=list.find(p=>normName(p.name).includes(n)||n.includes(normName(p.name)));return m?m.id:'';}
 function matchProduct(name,list){return matchExact(name,list)||matchFuzzy(name,list);}
-function aliasKey(sup,name){return sup+'|'+normName(name);}
+function aliasKey(sup,name){return sup+'|'+tightName(name);}   // 用原名當 key，不然「洋蔥」和「洋蔥(台)」會共用同一組記憶
 // 選過一次就記住：下週上傳同樣的品名會自動對到同一項商品
 function resolvePid(name,list){const a=wkAlias[aliasKey(wkSup,name)];
   if(a==='__skip')return {pid:'',skip:true,sure:true};
@@ -1306,7 +1327,57 @@ function impSect(icon,title,color,idx,open,hint){
     <div class="muted" style="padding:8px 14px 2px;font-size:12px">${hint}</div>
     <table class="keepcols" style="font-size:13px"><thead><tr><th>報價單品名</th><th class="center">單位</th><th class="right">價格</th><th>系統商品</th></tr></thead>
     <tbody>${idx.map(impRow).join('')}</tbody></table></details>`;}
+/* ===== 核對：拿同一份 Excel 回頭比系統裡的價格，不改任何資料 ===== */
+function openVerify(){impMode='verify';
+  openModal(`<h3>核對 ${esc(wkSup)} 價格</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">
+      再選一次<b style="color:var(--ink)">同一份廠商給的價目表</b>，系統會逐項比對，告訴妳哪裡不一樣。<br>
+      <b style="color:var(--ink)">這個動作不會改到任何資料</b>，只是檢查。</div>
+    <div class="fld"><label>選擇要核對的檔案</label>
+      <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.txt" onchange="onImportFile(this)" style="padding:9px"></div>
+    <div class="modact"><button class="btn grey" onclick="hideModal()">取消</button></div>`);}
+function verifyReport(res){
+  const items=res.items||[];
+  const wk=res.period?weekStartTue(res.period.start):wkWeek;
+  const list=products.filter(p=>p.supplier===wkSup);
+  const same=[],diff=[],noSys=[],noMatch=[];const hit={};
+  items.forEach(it=>{
+    const r=resolvePid(it.name,list);
+    const pid=(r.pid&&r.sure)?r.pid:'';
+    if(!pid){noMatch.push(it);return;}
+    hit[pid]=1;
+    const sys=weeklyPrice(wkSup,wk,pid),file=it.na?0:it.price;
+    if(sys==null)noSys.push({it,pid});
+    else if(Math.abs(Number(sys)-Number(file))>0.001)diff.push({it,pid,sys,file});
+    else same.push(it);});
+  // 系統有價、但這份檔案裡沒有這一項 → 可能是上禮拜殘留的價格
+  const stale=list.filter(p=>!hit[p.id]&&weeklyPrice(wkSup,wk,p.id)!=null)
+    .map(p=>({p,sys:weeklyPrice(wkSup,wk,p.id)}));
+  const bad=diff.length+noSys.length+stale.length;
+  const nm=pid=>{const p=list.find(x=>x.id===pid);return p?esc(p.name):'—';};
+  const box=(t,c,inner)=>`<div style="background:#fff;border-radius:12px;border-left:5px solid ${c};padding:12px 14px;margin-bottom:10px">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:6px">${t}</div>${inner}</div>`;
+  openModal(`<h3>核對結果</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:12px">${esc(wkSup)}　${mmdd(wk)}（三）～ ${mmdd(weekEndOf(wk))}　·　檔案共 ${items.length} 筆</div>
+    <div style="background:${bad?'#FBE9E7':'var(--green-soft)'};color:${bad?'#C0392B':'var(--green)'};border-radius:14px;padding:15px 17px;font-weight:800;font-size:16px;margin-bottom:14px">
+      ${bad?`⚠️ 有 ${bad} 項對不起來，請往下看`:`✅ 全部一致，${same.length} 項價格都跟檔案一樣`}</div>
+    <div style="max-height:50vh;overflow:auto;background:#FAF7F2;padding:10px;border-radius:12px">
+      ${diff.length?box(`❌ 價格不一樣（${diff.length}）`,'#C0392B',
+        `<table style="font-size:12.5px;width:100%"><thead><tr><th>品項</th><th class="right">系統</th><th class="right">檔案</th></tr></thead><tbody>
+         ${diff.map(d=>`<tr><td>${esc(d.it.name)}<div class="muted" style="font-size:11px">系統：${nm(d.pid)}</div></td>
+           <td class="right"><b>$${fmt(d.sys)}</b></td><td class="right"><b style="color:#C0392B">$${fmt(d.file)}</b></td></tr>`).join('')}</tbody></table>`):''}
+      ${noSys.length?box(`⚠️ 檔案有價、系統沒登錄（${noSys.length}）`,'#EE9528',
+        `<div class="muted" style="font-size:12.5px;line-height:1.9">${noSys.map(d=>esc(d.it.name)+' $'+fmt(d.it.na?0:d.it.price)).join('、')}<br><br>代表這幾筆上傳時沒進去，請重新上傳一次。</div>`):''}
+      ${stale.length?box(`⚠️ 系統有價、這份檔案沒這項（${stale.length}）`,'#EE9528',
+        `<div class="muted" style="font-size:12.5px;line-height:1.9">${stale.map(d=>esc(d.p.name)+' $'+fmt(d.sys)).join('、')}<br><br>可能是上一週留下來的價格，確認一下是不是該清掉。</div>`):''}
+      ${noMatch.length?box(`○ 還沒對應到系統商品（${noMatch.length}）`,'#C9C2B6',
+        `<div class="muted" style="font-size:12.5px;line-height:1.9">${noMatch.map(it=>esc(it.name)).join('、')}<br><br>上傳時選過一次之後就會自動對上，這幾筆不影響已登錄的價格。</div>`):''}
+      ${same.length?box(`✅ 一致（${same.length}）`,'#1B6B47',
+        `<div class="muted" style="font-size:12px;line-height:1.9">${same.map(it=>esc(it.name)).join('、')}</div>`):''}
+    </div>
+    <div class="modact"><button class="btn grey" onclick="openVerify()">‹ 換一個檔案</button><button class="btn" onclick="hideModal()">關閉</button></div>`,true);}
 function handleParsed(res){
+  if(impMode==='verify')return verifyReport(res);
   const items=res.items||[];
   if(!items.length){toast('讀不到品名與價格，請確認檔案格式');return;}
   // 檔案上有期間 → 自動切到該週期
