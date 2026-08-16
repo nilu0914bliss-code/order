@@ -457,6 +457,7 @@ function cloudBind(){
     if(v&&Object.keys(v).length)products=Object.keys(v).map(k=>v[k]);
     else if(products.length)cloudPushShared();
     if(migrateAltUnits()){persistLocal();cloudPushShared();}
+    if(purgeOldAlias()){persistLocal();cloudPushShared();}
     render();}));
   cloudUnsub.push(CLOUD.watch('shared/suppliers',v=>{
     if(v&&Object.keys(v).length)suppliers=Object.keys(v).map(k=>v[k]);
@@ -897,7 +898,7 @@ function vSupDetail(){
     const wk=weekday(d),we=(wk==='六'||wk==='日');
     return `<tr${(a||m||r)?'':' style="opacity:.55"'}><td><b>${mmdd(d)}</b> <span class="muted">(${wk})</span>${we?'':''}
         ${ords.map(o=>`<div style="font-size:11.5px;margin-top:6px">
-          <span class="muted">· ${o.no}　✓已收</span>　<b>$${fmt(orderTotal(o))}</b>
+          <span class="muted">· ${o.no}　✓已收</span>　<b>$${fmt(orderTotal(o))}</b>${o.photo?`　<a style="cursor:pointer;text-decoration:underline;color:var(--green)" onclick="event.stopPropagation();viewOrderPhoto('${o.no}')">📷 貨單</a>`:''}
           <div style="margin-left:11px;border-left:2px solid var(--line);padding-left:9px;margin-top:2px">
             ${(o.items||[]).map(i=>`<div class="muted">${esc(i.name)}　${i.qty} ${esc(i.unit)}${i.price==null?'　<span style="color:var(--amber)">單價未填</span>':`　× $${fmt2(i.price)} ＝ <b style="color:var(--ink)">$${fmt(i.price*i.qty)}</b>`}</div>`).join('')}
           </div></div>`).join('')}
@@ -1286,7 +1287,9 @@ function matchExact(name,list){let m=list.find(p=>p.name===name);if(m)return m.i
 function matchFuzzy(name,list){const n=normName(name);
   const m=list.find(p=>normName(p.name).includes(n)||n.includes(normName(p.name)));return m?m.id:'';}
 function matchProduct(name,list){return matchExact(name,list)||matchFuzzy(name,list);}
-function aliasKey(sup,name){return sup+'|'+tightName(name);}   // 用原名當 key，不然「洋蔥」和「洋蔥(台)」會共用同一組記憶
+function aliasKey(sup,name){return sup+'|2|'+tightName(name);}
+/* v1 的 key 是用去括號的名字存的（洋蔥 與 洋蔥(台) 會共用），一律清掉不要沿用 */
+function purgeOldAlias(){let n=0;Object.keys(wkAlias).forEach(k=>{if(k.indexOf('|2|')<0){delete wkAlias[k];n++;}});return n;}
 // 選過一次就記住：下週上傳同樣的品名會自動對到同一項商品
 function resolvePid(name,list){const a=wkAlias[aliasKey(wkSup,name)];
   if(a==='__skip')return {pid:'',skip:true,sure:true};
@@ -1337,6 +1340,7 @@ function openVerify(){impMode='verify';
       <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.txt" onchange="onImportFile(this)" style="padding:9px"></div>
     <div class="modact"><button class="btn grey" onclick="hideModal()">取消</button></div>`);}
 function verifyReport(res){
+  verifyRes=res;
   const items=res.items||[];
   const wk=res.period?weekStartTue(res.period.start):wkWeek;
   const list=products.filter(p=>p.supplier===wkSup);
@@ -1375,7 +1379,14 @@ function verifyReport(res){
       ${same.length?box(`✅ 一致（${same.length}）`,'#1B6B47',
         `<div class="muted" style="font-size:12px;line-height:1.9">${same.map(it=>esc(it.name)).join('、')}</div>`):''}
     </div>
-    <div class="modact"><button class="btn grey" onclick="openVerify()">‹ 換一個檔案</button><button class="btn" onclick="hideModal()">關閉</button></div>`,true);}
+    ${bad?`<div class="muted" style="font-size:12px;margin-top:12px;line-height:1.7">廠商每週給的檔案就是最新的，<b style="color:var(--ink)">以檔案為準</b>。按下面的按鈕就會用這份檔案把這一週的價格整份換掉。</div>`:''}
+    <div class="modact"><button class="btn grey" onclick="openVerify()">‹ 換一個檔案</button>
+      ${bad?`<button class="btn" onclick="fixFromFile()">用這份檔案更正</button><button class="btn grey" onclick="hideModal()">先不要</button>`
+           :`<button class="btn" onclick="hideModal()">關閉</button>`}</div>`,true);}
+let verifyRes=null;
+function fixFromFile(){if(!verifyRes)return;
+  if(verifyRes.period){const ws=weekStartTue(verifyRes.period.start);if(ws)wkWeek=ws;}
+  impMode='import';handleParsed(verifyRes);}
 function handleParsed(res){
   if(impMode==='verify')return verifyReport(res);
   const items=res.items||[];
@@ -1403,7 +1414,8 @@ function handleParsed(res){
     ${noteP}
     <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.7">
       共讀到 <b style="color:var(--ink)">${items.length}</b> 筆，套用到
-      <b style="color:var(--ink)">${mmdd(wkWeek)}（三）～ ${mmdd(weekEndOf(wkWeek))}</b>。確認後這一週叫貨都會用這份價格。</div>
+      <b style="color:var(--ink)">${mmdd(wkWeek)}（三）～ ${mmdd(weekEndOf(wkWeek))}</b>。<br>
+      <b style="color:#B9741C">這一週的價格會整份換成這份檔案</b>——廠商每週給的就是最新的，以檔案為準。</div>
     <div style="max-height:50vh;overflow:auto;background:#FAF7F2;padding:10px;border-radius:12px">
       ${impSect('✅','已對到現有商品','var(--green)',gOK,false,'價格會直接更新。對錯了的話按「改」重選。')}
       ${impSect('⚠️','找不到對應的商品','#EE9528',gNew,true,'請幫這幾筆選一次；選過之後系統會記住，下週上傳就自動對上。')}
@@ -1424,6 +1436,9 @@ function applyImport(){let n=0,created=0,uch=0,na=0,skipped=0;
   rec.forEach(([i,v])=>{if(v==='__skip'||v==='__new')return;
     if(dupe[v]){bad.push(importRows[dupe[v]].name+'、'+importRows[i].name);}else dupe[v]=i;});
   if(bad.length){toast('「'+bad[0]+'」對到同一個商品，價格會蓋掉，請先改一下');return;}
+  // 這一週這家廠商的價格整份換成檔案上的，避免上次殘留的舊價混在裡面
+  let wiped=0;
+  Object.keys(weekly).forEach(k=>{if(k.indexOf(wkSup+'|'+wkWeek+'|')===0){delete weekly[k];wiped++;}});
   rec.forEach(([i,v])=>{const it=importRows[i];if(!it)return;
     if(v==='__skip'){wkAlias[aliasKey(wkSup,it.name)]='__skip';skipped++;return;}
     let pid=v;
@@ -1637,6 +1652,7 @@ function vOrders(){return `<div class="crumb">首頁 / 採購</div><h1>已送出
     <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'—')}</span><br><span class="muted" style="font-size:12.5px">供應商：${o.supplier}｜下單 ${mmdd(o.date)}｜到貨 ${mmdd(o.deliveryDate)}${o.receivedAt?`｜<b style="color:var(--green)">貨單 ${mmdd(o.receivedAt)}</b>`:''}</span></div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="pill ${o.status==='已驗收'?'done':o.status==='已作廢'?'void':'wait'}">${o.status}</span>
+        ${o.photo?`<button class="btn grey mini" onclick="viewOrderPhoto('${o.no}')">📷 貨單</button>`:''}
         ${o.status==='已作廢'?`<button class="btn grey mini" onclick="restoreOrder('${o.no}')">還原</button>`
           :`<button class="btn grey mini" onclick="openEditOrder('${o.no}')">修改 / 作廢</button>
             <button class="btn grey mini" title="拿到廠商退貨單時登錄" onclick="returnFromOrder('${o.no}')">↩︎ 退貨</button>`}</div></div>
@@ -1679,6 +1695,14 @@ function vReceiving(){const wait=storeOrders().filter(o=>o.status!=='已驗收'&
         <input type="date" id="rd_${o.no}" value="${isoAt(0)}" style="width:150px;display:inline-block;padding:8px 10px;font-size:13px" title="照廠商貨單上的日期填">
         <button class="btn green mini" onclick="receive('${o.no}')">✓ 確認收貨</button></div></div>
     ${tbd?`<div style="padding:12px 20px 0;font-size:12.5px" class="muted">這家是時價廠商。<b style="color:var(--ink)">照貨單填實收數量、單位與單價</b>——叫貨用「顆」但貨單寫「斤」的話，直接改成貨單上的數字就好。</div>`:''}
+    <div style="padding:12px 20px 0">
+      ${o.photo?`<img src="${o.photo}" onclick="viewOrderPhoto('${o.no}')" style="max-height:150px;max-width:100%;border-radius:12px;cursor:zoom-in;display:block;margin-bottom:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <label class="btn line mini" style="cursor:pointer">換一張<input type="file" accept="image/*" capture="environment" style="display:none" onchange="ordPhoto('${o.no}',this)"></label>
+          <button class="btn grey mini" onclick="viewOrderPhoto('${o.no}')">🔍 放大看</button>
+          <button class="btn grey mini" onclick="delOrdPhoto('${o.no}')">移除</button></div>`
+      :`<label class="btn line" style="display:inline-block;cursor:pointer">📷 拍貨單<input type="file" accept="image/*" capture="environment" style="display:none" onchange="ordPhoto('${o.no}',this)"></label>
+        <span class="muted" style="font-size:11.5px;margin-left:9px">每一家都拍一張，月底對帳直接看照片</span>`}</div>
     <table><tbody>${o.items.map((i,idx)=>`<tr><td>${esc(i.name)}<div class="muted" style="font-size:11.5px">叫了 ${i.qty} ${esc(i.unit)}${i.baseQty?`（＝ ${fmt(i.baseQty)} ${esc(i.baseUnit)}）`:''}</div></td>
       <td class="center">${i.price==null
         ?`<span class="mlab">實收數量</span><input style="width:78px;text-align:right;display:inline-block" type="number" step="any" value="${i.baseQty||i.qty}" data-iq="${o.no}|${idx}">
@@ -1719,7 +1743,29 @@ async function submitOrder(){const items=Object.keys(cart).filter(id=>cart[id]>0
     }
   }catch(e){console.warn(e);toast('送出失敗，請再試一次');if(btn){btn.disabled=false;btn.textContent='送出訂單';}return;}
   persist();toast('訂單已送出 ✓');go('orders');}
+function ordPhoto(no,input){const fl=input.files&&input.files[0];if(!fl)return;
+  toast('照片處理中…');
+  const rd=new FileReader();
+  rd.onload=e=>{const img=new Image();
+    img.onload=()=>{const max=1400;let w=img.width,h=img.height;
+      if(w>max||h>max){const sc=max/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      const o=orders.find(x=>x.no===no);if(!o)return;
+      o.photo=c.toDataURL('image/jpeg',0.6);
+      cloudSaveOrder(o);persist();toast('貨單照片已附上 ✓');render();};
+    img.onerror=()=>toast('這張圖讀不到，換一張試試');
+    img.src=e.target.result;};
+  rd.readAsDataURL(fl);}
+function delOrdPhoto(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  delete o.photo;cloudSaveOrder(o);persist();render();}
+function viewOrderPhoto(no){const o=orders.find(x=>x.no===no);if(!o||!o.photo)return;
+  openModal(`<h3>${o.no}　貨單照片</h3>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">${esc(o.supplier)}　${o.receivedAt?'貨單日期 '+mmdd(o.receivedAt):'尚未收貨'}</div>
+    <img src="${o.photo}" style="width:100%;border-radius:12px">
+    <div class="modact" style="margin-top:14px"><button class="btn grey" onclick="hideModal()">關閉</button></div>`,true);}
 function receive(no){const o=orders.find(x=>x.no===no);if(!o)return;
+  if(!o.photo&&!confirm('還沒拍貨單照片。\n月底對帳會少一張憑證，確定要直接確認收貨嗎？'))return;
   let missing=false;
   // 時價品項：照貨單填實收數量、單位、單價
   document.querySelectorAll(`[data-iq^="${no}|"]`).forEach(inp=>{const idx=+inp.dataset.iq.split('|')[1];
@@ -1756,6 +1802,7 @@ let tt;function toast(m){const t=document.getElementById('toast');t.textContent=
 window.addEventListener('error',e=>{try{toast('畫面出錯了：'+(e.message||'未知錯誤'));}catch(_){}});
 window.addEventListener('unhandledrejection',e=>{try{toast('操作沒完成：'+((e.reason&&e.reason.message)||'未知錯誤'));}catch(_){}});
 migrateAltUnits();
+purgeOldAlias();
 render();
 setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
 </script>
