@@ -1168,14 +1168,17 @@ function vWeekly(){
   const body=prods.map(p=>{const cur=weeklyPrice(wkSup,wkWeek,p.id),prev=weeklyPrice(wkSup,prevW,p.id);
     if(cur!=null)filled++;
     const diff=(cur!=null&&prev!=null)?cur-prev:null;
-    return `<tr><td><b>${esc(p.name)}</b> ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</td>
+    const al=aliasNamesFor(p.id,wkSup);
+    return `<tr><td><b>${esc(p.name)}</b> ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}
+      ${al.length?`<div class="muted" style="font-size:11px;margin-top:2px">價目表上叫：${al.map(esc).join('、')}</div>`:''}</td>
       <td class="right muted">${prev!=null?'$'+fmt(prev):'—'}</td>
       <td class="right"><input style="width:120px;text-align:right;display:inline-block" type="number" value="${cur!=null?cur:''}" placeholder="輸入單價" data-wk="${p.id}">${cur===0?'<div style="font-size:10.5px;color:#C0392B">填 0 ＝ 本週無供應</div>':''}</td>
       <td class="right muted">/ ${esc(p.unit)}</td>
-      <td class="right">${diff==null?'':(diff>0?`<span style="color:var(--red)">▲ $${fmt(diff)}</span>`:diff<0?`<span style="color:var(--green)">▼ $${fmt(-diff)}</span>`:'<span class="muted">持平</span>')}</td></tr>`;}).join('');
+      <td class="right">${diff==null?'':(diff>0?`<span style="color:var(--red)">▲ $${fmt(diff)}</span>`:diff<0?`<span style="color:var(--green)">▼ $${fmt(-diff)}</span>`:'<span class="muted">持平</span>')}</td>
+      <td class="right"><button class="btn grey mini" onclick="openProduct('${p.id}')">編輯</button></td></tr>`;}).join('');
   return `<div class="crumb">首頁 / 日常叫貨</div>
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin-bottom:0">${esc(wkSup.replace('農產行','').replace('商行',''))}本週菜價上傳</h1>
-    <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn line" onclick="showPriceChanges(wkSup,wkWeek)">📈 本週調價</button><button class="btn line" onclick="openVerify()">🔍 核對價格</button><button class="btn" onclick="openImport()">📤 上傳價目表</button></div></div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn line" onclick="openProduct('',wkSup)">＋ 新增商品</button><button class="btn line" onclick="showPriceChanges(wkSup,wkWeek)">📈 本週調價</button><button class="btn line" onclick="openVerify()">🔍 核對價格</button><button class="btn" onclick="openImport()">📤 上傳價目表</button></div></div>
   <div class="muted" style="margin:8px 0 14px">時價廠商每週二給新價目表（週期為週三～次週二），登錄後這一週叫貨都會自動套用。廠商傳 Excel／CSV 可直接上傳，不用手打。</div>
   <div class="card"><div style="display:flex;gap:14px;flex-wrap:wrap">
     <div class="field" style="min-width:200px"><label>廠商</label><select id="wkSupSel">${spot.map(s=>`<option ${wkSup===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
@@ -1183,7 +1186,7 @@ function vWeekly(){
   <div class="card" style="padding:0;overflow:hidden">
     <div style="padding:16px 20px;font-weight:700;background:var(--green-tint);display:flex;justify-content:space-between">
       <span>${esc(wkSup)}　${mmdd(wkWeek)}～${mmdd(weekEndOf(wkWeek))}</span><span class="muted" style="font-weight:400">已報價 ${filled} / ${prods.length} 項</span></div>
-    ${prods.length?`<table><thead><tr><th>商品</th><th class="right">上週價</th><th class="right">本週單價</th><th class="right">單位</th><th class="right">漲跌</th></tr></thead><tbody>${body}</tbody></table>`
+    ${prods.length?`<table><thead><tr><th>商品</th><th class="right">上週價</th><th class="right">本週單價</th><th class="right">單位</th><th class="right">漲跌</th><th></th></tr></thead><tbody>${body}</tbody></table>`
     :`<div class="empty">這家廠商還沒有商品，請先到「商品與價格」新增。</div>`}</div>
   ${prods.length?`<div style="text-align:right"><button class="btn" onclick="saveWeekly()">儲存本週菜價</button></div>`:''}`;
 }
@@ -1346,6 +1349,13 @@ function uNorm(u){const x=String(u||'').replace(/[\s　]/g,'').toUpperCase();
 function sameUnit(a,b){return uNorm(a)===uNorm(b);}
 // 價目表的「單位」欄有時候寫的是規格（180g/包、5兩/包），那個不是單位，不要拿去蓋掉我們設好的單位
 function usableUnit(u){const x=String(u||'').trim();return !!x&&x.length<=4&&!/[0-9０-９]/.test(x);}
+function aliasNamesFor(pid,sup){const pre=sup+'|2|',out=[];
+  Object.keys(wkAlias).forEach(k=>{if(k.indexOf(pre)===0&&wkAlias[k]===pid)out.push(k.slice(pre.length));});
+  return out;}
+function setAliasNames(pid,sup,names){
+  const pre=sup+'|2|';
+  Object.keys(wkAlias).forEach(k=>{if(k.indexOf(pre)===0&&wkAlias[k]===pid)delete wkAlias[k];});
+  names.forEach(n=>{const t=tightName(n);if(t)wkAlias[pre+t]=pid;});}
 function impList(){return products.filter(p=>p.supplier===wkSup);}
 function impSelect(i){const it=importRows[i],list=impList();
   // 只是「猜的」一律不預選，預設建立新品項——寧可多一筆新商品，也不要把價格填到別的商品上
@@ -1500,7 +1510,8 @@ function delSupplier(i){const nm=suppliers[i].name;
   if(products.some(p=>p.supplier===nm)){toast('此廠商還有商品，請先移除那些商品');return;}
   suppliers.splice(i,1);persist();hideModal();toast('已刪除');render();}
 /* ====== 商品新增/編輯 ====== */
-function openProduct(id){const p=id?products.find(x=>x.id===id):{name:'',spec:'',supplier:(suppliers[0]||{}).name||'',cat:'',unit:'',price:''};
+function openProduct(id,presetSup){const p=id?products.find(x=>x.id===id):{name:'',spec:'',supplier:presetSup||(suppliers[0]||{}).name||'',cat:'',unit:'',price:''};
+  const alNow=id?aliasNamesFor(id,p.supplier):[];
   openModal(`<h3>${id?'編輯商品':'新增商品'}</h3>
     <div class="fld"><label>商品名稱</label><input id="pName" value="${esc(p.name||'')}" placeholder="例：去骨雞腿肉 2kg"></div>
     <div class="grid2"><div class="fld"><label>規格（選填）</label><input id="pSpec" value="${esc(p.spec||'')}" placeholder="2kg/包"></div>
@@ -1508,6 +1519,9 @@ function openProduct(id){const p=id?products.find(x=>x.id===id):{name:'',spec:''
     <div class="fld"><label>供應商</label><select id="pSup" onchange="pTaxCalc()">${suppliers.map(s=>`<option value="${esc(s.name)}" ${p.supplier===s.name?'selected':''}>${esc(s.name)}${s.tax==='未稅'?'（未稅報價）':''}</option>`).join('')}</select></div>
     <div class="grid2"><div class="fld"><label>類別（選填）</label><input id="pCat" value="${esc(p.cat||'')}" placeholder="肉品"></div>
       <div class="fld"><label>單價</label><input id="pPrice" type="number" step="any" value="${p.price||''}" placeholder="0" oninput="pTaxCalc()"></div></div>
+    <div class="fld"><label>廠商價目表上的名字（選填）</label>
+      <input id="pAlias" value="${esc(alNow.join('、'))}" placeholder="例：紅K片　（廠商用簡稱時填這裡）">
+      <div class="muted" style="font-size:11.5px;margin-top:7px;line-height:1.7">廠商價目表上的寫法如果跟這裡的名字不一樣，填在這裡，上傳時就會自動對到這一項，不用每次再選。<br>有多個寫法用「、」分開。<b style="color:var(--ink)">之後妳把上面的商品名稱改掉，這個對應也不會斷</b>——系統記的是商品編號，不是名字。</div></div>
     <div class="fld"><label>也可以用「件」叫貨（選填）</label>
       <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
         <span class="muted" style="font-size:13px">1 件 ＝</span>
@@ -1541,7 +1555,10 @@ function saveProduct(id){const name=document.getElementById('pName').value.trim(
   const af=parseFloat((document.getElementById('pAltF')||{}).value);
   const data={name,spec:document.getElementById('pSpec').value.trim(),unit:document.getElementById('pUnit').value.trim()||'件',supplier:pSupNow(),cat:document.getElementById('pCat').value.trim()||'未分類',price,
     alt:(!isNaN(af)&&af>0)?{u:'件',f:af}:{u:'',f:0}};   // f=0 代表「這項沒有件」，Firebase 不吃 null 所以用 0 當關掉
-  if(id){Object.assign(products.find(x=>x.id===id),data);}else{products.push({id:'x'+Date.now(),...data});}
+  let pid=id;
+  if(id){Object.assign(products.find(x=>x.id===id),data);}else{pid='x'+Date.now();products.push({id:pid,...data});}
+  const ae=document.getElementById('pAlias');
+  if(ae)setAliasNames(pid,data.supplier,String(ae.value||'').split(/[、,，\/]/).map(x=>x.trim()).filter(Boolean));
   persist();hideModal();toast('已儲存 ✓');render();}
 function delProduct(id){products=products.filter(p=>p.id!==id);persist();hideModal();toast('已刪除');render();}
 /* ====== 我的最愛 ====== */
