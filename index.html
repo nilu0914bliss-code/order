@@ -473,7 +473,7 @@ function cloudBind(){
     orders=v?Object.keys(v).map(k=>v[k]).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:(a.no<b.no?1:-1)):[];
     persistLocal();render();}));
   cloudUnsub.push(CLOUD.watch(SP()+'/returns',v=>{
-    returns=v?Object.keys(v).map(k=>v[k]):[];persistLocal();render();}));
+    returns=v?Object.keys(v).map(k=>fixRet(v[k])):[];persistLocal();render();}));
   [['matManual',()=>matManual],['favs',()=>favs],['lastQty',()=>lastQty],['manualRev',()=>manualRev],['projRev',()=>projRev]]
     .forEach(([name,get])=>{cloudUnsub.push(CLOUD.watch(SP()+'/'+name,v=>{applyMap(get(),v);persistLocal();render();}));});
 }
@@ -929,8 +929,9 @@ let rDraft=null,rShowItems=false;
 function newReturn(sup){rShowItems=false;
   rDraft={id:'',kind:'退貨',supplier:sup||(suppliers[0]||{}).name||'',date:isoAt(0),docNo:'',refNo:'',note:'',items:[],override:''};
   openReturnModal();}
+function fixRet(r){if(r&&!Array.isArray(r.items))r.items=[];return r;}
 function openReturn(id){const r=returns.find(x=>x.id===id);if(!r)return;
-  rShowItems=false;rDraft=JSON.parse(JSON.stringify(r));if(rDraft.override==null)rDraft.override='';openReturnModal();}
+  rShowItems=false;rDraft=fixRet(JSON.parse(JSON.stringify(r)));if(rDraft.override==null)rDraft.override='';openReturnModal();}
 function rSyncTop(){
   const g=i=>{const e=document.getElementById(i);return e?e.value:undefined;};
   const k=g('rKind'); if(k!==undefined)rDraft.kind=k;
@@ -947,8 +948,8 @@ function rSyncTop(){
     else it[f]=el.value===''?'':Number(el.value);
     if(f==='qty'||f==='price')it.amount=Math.round(((Number(it.qty)||0)*(Number(it.price)||0))*100)/100;
   });}
-function rAddItem(){rSyncTop();rDraft.items.push({pid:'',name:'',unit:'',qty:1,price:0,amount:0});openReturnModal();}
-function rDelItem(i){rSyncTop();rDraft.items.splice(i,1);openReturnModal();}
+function rAddItem(){rSyncTop();fixRet(rDraft);rDraft.items.push({pid:'',name:'',unit:'',qty:1,price:0,amount:0});openReturnModal();}
+function rDelItem(i){rSyncTop();fixRet(rDraft);rDraft.items.splice(i,1);openReturnModal();}
 function rPickProduct(i,pid){rSyncTop();const p=products.find(x=>x.id===pid);
   const it=rDraft.items[i];if(!it)return;
   if(p){it.pid=p.id;it.name=p.name;it.unit=p.unit||'';const pr=priceFor(p,rDraft.date);it.price=(pr==null?0:pr);
@@ -960,7 +961,7 @@ function rChangeSup(){rSyncTop();openReturnModal();}
 function returnFromOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;rShowItems=false;
   rDraft={id:'',kind:'退貨',supplier:o.supplier,date:isoAt(0),docNo:'',refNo:o.no,note:'',items:[],override:''};
   openReturnModal();}
-function rSum(){return rDraft.items.reduce((s,i)=>s+(Number(i.amount)||0),0);}
+function rSum(){return ((rDraft&&rDraft.items)||[]).reduce((s,i)=>s+(Number(i.amount)||0),0);}
 // 退貨單照片：縮到 1400px、品質 0.6，看得清楚又不會把雲端塞爆
 function rAttachPhoto(input){const fl=input.files&&input.files[0];if(!fl)return;
   rSyncTop();toast('照片處理中…');
@@ -976,7 +977,7 @@ function rAttachPhoto(input){const fl=input.files&&input.files[0];if(!fl)return;
     img.src=e.target.result;};
   rd.readAsDataURL(fl);}
 function rDelPhoto(){rSyncTop();delete rDraft.photo;openReturnModal();}
-function rShowItemsOn(){rSyncTop();rShowItems=true;if(!rDraft.items.length)rDraft.items.push({pid:'',name:'',unit:'',qty:1,price:0,amount:0});openReturnModal();}
+function rShowItemsOn(){rSyncTop();fixRet(rDraft);rShowItems=true;if(!rDraft.items.length)rDraft.items.push({pid:'',name:'',unit:'',qty:1,price:0,amount:0});openReturnModal();}
 function rUseSum(){rSyncTop();rDraft.override=rSum();openReturnModal();}
 function rPhotoGallery(sup){const t=supType(sup),win=monthWindow(selMonth,t);
   const list=returns.filter(r=>r.store===selStore&&r.supplier===sup&&r.date>=win.start&&r.date<=win.end&&r.photo)
@@ -995,16 +996,6 @@ function openReturnModal(){
   const sup=rDraft.supplier;
   const list=products.filter(p=>p.supplier===sup);
   const opts=(sel)=>`<option value="">— 自訂品名 —</option>`+list.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
-  const rows=rDraft.items.map((it,i)=>`<tr>
-      <td data-l="品項" style="min-width:200px">
-        <select onchange="rPickProduct(${i},this.value)" style="margin-bottom:5px">${opts(it.pid)}</select>
-        <input data-ri="${i}" data-rf="name" value="${esc(it.name||'')}" placeholder="品名（可直接照退貨單打）">
-      </td>
-      <td data-l="單位"><input data-ri="${i}" data-rf="unit" value="${esc(it.unit||'')}" placeholder="箱" style="width:70px"></td>
-      <td data-l="數量"><input data-ri="${i}" data-rf="qty" type="number" step="any" value="${it.qty}" style="width:80px;text-align:right" oninput="rRecalc(${i})"></td>
-      <td data-l="單價"><input data-ri="${i}" data-rf="price" type="number" step="any" value="${it.price}" style="width:100px;text-align:right" oninput="rRecalc(${i})"></td>
-      <td data-l="金額"><input data-ri="${i}" data-rf="amount" type="number" step="any" value="${it.amount}" style="width:110px;text-align:right"></td>
-      <td class="right" style="width:44px"><button class="btn grey mini" style="padding:7px 11px" title="移除這一項" onclick="rDelItem(${i})">✕</button></td></tr>`).join('');
   const sum=rSum();
   openModal(`<h3>${rDraft.id?'編輯':'登錄'}退貨／折讓單</h3>
   <div class="muted" style="font-size:12.5px;margin:-6px 0 14px;line-height:1.6">拍一張廠商開的退貨單，填上要扣的金額就好。</div>
@@ -1046,7 +1037,7 @@ function saveReturn(){
   rSyncTop();
   if(!rDraft.supplier){alert('請選廠商');return;}
   if(!rDraft.date){alert('請填銷退日期');return;}
-  rDraft.items=rDraft.items.filter(i=>(i.name||'').trim()!=='');
+  rDraft.items=(rDraft.items||[]).filter(i=>(i.name||'').trim()!=='');
   const tot=rDraft.override!==''&&rDraft.override!=null?Number(rDraft.override):rSum();
   if(!(tot>0)){alert('請填「這張單要扣多少」，不然不會從貨款扣掉。');return;}
   if(!(tot>0)){alert('金額要大於 0。請填品項金額，或直接在「金額總計」填退貨單上的總金額。');return;}
@@ -1690,6 +1681,9 @@ function monthOptions(sel){const d=new Date();const arr=[];for(let i=-15;i<=2;i+
   return arr.sort().reverse().map(m=>{const[y,mm]=m.split('-');return `<option value="${m}" ${m===sel?'selected':''}>${y} 年 ${mm} 月</option>`;}).join('');}
 function mmdd(iso){if(!iso)return'';const p=iso.split('-');return `${p[1]}/${p[2]}`;}
 let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),1700);}
+/* 按鈕沒反應通常是某個地方丟了例外又被吃掉；至少讓它現形，不要讓人以為是「按不動」 */
+window.addEventListener('error',e=>{try{toast('畫面出錯了：'+(e.message||'未知錯誤'));}catch(_){}});
+window.addEventListener('unhandledrejection',e=>{try{toast('操作沒完成：'+((e.reason&&e.reason.message)||'未知錯誤'));}catch(_){}});
 migrateAltUnits();
 render();
 setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
