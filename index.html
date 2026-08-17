@@ -1145,21 +1145,37 @@ function openSupplier(i){const s=i>=0?suppliers[i]:{name:'',type:'月結',pricin
       <option value="隨貨" ${pc==='隨貨'?'selected':''}>時價 · 隨貨計價（收貨當天才知道價）</option></select>
       <div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">「每週報價」→ 到「本週菜價」登錄，叫貨自動套用當週價。<br>「隨貨計價」→ 叫貨只記數量，收貨確認時填實際單價。</div></div>
     <div class="fld"><label>LINE 叫貨群組 ID（選填）</label>
-      <input id="sLineTo" value="${esc(s.lineTo||'')}" placeholder="C 開頭的一長串，從 Apps Script 那頁複製">
+      <input id="sLineTo" value="${esc(s.lineTo||'')}" placeholder="C 開頭的一長串，從 Apps Script 那頁複製" oninput="chkLineId()">
+      <div id="lnChk" style="font-size:12px;margin-top:7px"></div>
       <div style="display:flex;align-items:center;gap:9px;margin-top:9px;flex-wrap:wrap">
-        <span class="muted" style="font-size:13px">群組裡有</span>
+        <span class="muted" style="font-size:13px">群組人數</span>
         <input id="sLineSize" type="number" min="1" style="width:90px" value="${Number(s.lineSize)||1}">
-        <span class="muted" style="font-size:13px">人</span></div>
-      <div class="muted" style="font-size:11.5px;margin-top:7px;line-height:1.7">填了之後，送出這家廠商的叫貨單就會<b>自動發到那個群</b>。<br>
-        LINE 的算法是「發送次數 × 群裡人數」，所以人數要填對，系統才能正確估算本月用掉幾則。</div></div>
-    <div class="modact">${i>=0?`<button class="btn grey mini" onclick="delSupplier(${i})" style="margin-right:auto">刪除</button>`:''}<button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveSupplier(${i})">儲存</button></div>`);}
+        <span class="muted" style="font-size:13px">人</span>
+        <span class="pill done">每次發送自動更新</span></div>
+      <div class="muted" style="font-size:11.5px;margin-top:7px;line-height:1.7">填了群組 ID 之後，送出這家廠商的叫貨單就會<b>自動發到那個群</b>。<br>
+        人數<b>不用自己維護</b>——每次發送時系統會跟 LINE 問群組現在幾個人，回填到這裡，則數就永遠算得準。上面那格只是還沒發過任何一張單時的預設值。</div></div>
+    <div class="modact">${i>=0?`<button class="btn grey mini" onclick="delSupplier(${i})" style="margin-right:auto">刪除</button>`:''}<button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveSupplier(${i})">儲存</button></div>`);chkLineId();}
+function chkLineId(){const el=document.getElementById('sLineTo'),box=document.getElementById('lnChk');
+  if(!el||!box)return;
+  const raw=el.value.trim();
+  if(!raw){box.innerHTML='<span class="muted">沒填就不會自動發，送出訂單後可以手動傳。</span>';return;}
+  const c=cleanLineId(raw);
+  if(lineIdOk(c)){
+    box.innerHTML=(c===raw)
+      ?'<span style="color:var(--green);font-weight:700">✓ 格式正確</span>'
+      :'<span style="color:#B9741C;font-weight:700">⚠ 貼到多餘的字，儲存時會自動修成：</span><br><code style="word-break:break-all">'+esc(c)+'</code>';
+  }else{
+    box.innerHTML='<span style="color:#C0392B;font-weight:700">✗ 這不像群組 ID</span><span class="muted"> — 應該是 C 開頭再接 32 個英數字。請回 Apps Script 那頁只複製 <code>C…</code> 那一串。</span>';
+  }}
 function saveSupplier(i){const name=document.getElementById('sName').value.trim();const type=document.getElementById('sType').value;
   const pricing=document.getElementById('sPricing').value;
   const tax=document.getElementById('sTax').value;
   const basis=document.getElementById('sBasis').value;
   if(!name){toast('請輸入廠商名稱');return;}
   if(suppliers.some((x,j)=>x.name===name&&j!==i)){toast('已有同名廠商');return;}
-  const lineTo=(document.getElementById('sLineTo')||{value:''}).value.trim();
+  const lineToRaw=(document.getElementById('sLineTo')||{value:''}).value.trim();
+  const lineTo=cleanLineId(lineToRaw);
+  if(lineToRaw&&!lineIdOk(lineTo)){toast('LINE 群組 ID 格式不對，先修好再存');return;}
   const lineSize=Math.max(1,parseInt((document.getElementById('sLineSize')||{}).value)||1);
   if(i>=0)suppliers[i]={...suppliers[i],name,type,pricing,tax,basis,lineTo,lineSize};else suppliers.push({name,type,pricing,tax,basis,lineTo,lineSize});
   persist();hideModal();toast('已儲存 ✓');render();}
@@ -1875,7 +1891,16 @@ function lineMonth(){return isoAt(0).slice(0,7);}
 function lineUsed(){return Number(lineUsage[lineMonth()]||0);}
 function lineQuota(){return Number(lineCfg.quota||200);}
 function lineReady(){return !!(lineCfg.url&&lineCfg.secret);}
-function lineTargetOf(sup){const x=suppliers.find(y=>y.name===sup);return (x&&x.lineTo)||'';}
+/* 群組 ID 常常會連旁邊的字一起被複製到（換行、空白、群組名稱…），LINE 收到就會回 400。
+   這裡直接把那一長串 ID 撈出來，撈不到才退而求其次把非英數字都拿掉。 */
+function cleanLineId(s){const t=String(s||'');
+  const m=t.match(/[CURcur][0-9a-fA-F]{32}/);
+  if(m)return m[0];
+  return t.replace(/[^A-Za-z0-9]/g,'');}
+function lineIdOk(s){return /^[CURcur][0-9a-fA-F]{32}$/.test(cleanLineId(s));}
+function migrateLineIds(){let n=0;suppliers.forEach(s=>{if(!s.lineTo)return;
+  const c=cleanLineId(s.lineTo);if(c&&c!==s.lineTo){s.lineTo=c;n++;}});return n;}
+function lineTargetOf(sup){const x=suppliers.find(y=>y.name===sup);return cleanLineId(x&&x.lineTo);}
 function lineSizeOf(sup){const x=suppliers.find(y=>y.name===sup);return Math.max(1,Number(x&&x.lineSize)||1);}
 function cloudPushLine(){ if(CLOUD_ON&&window.CLOUD){CLOUD.set('shared/line',lineCfg);CLOUD.set('shared/lineUsage',lineUsage);} }
 function bumpUsage(n){const m=lineMonth();lineUsage[m]=lineUsed()+n;persistLocal();cloudPushLine();}
@@ -1885,28 +1910,44 @@ async function lineSend(to,text){
   const r=await fetch(lineCfg.url,{method:'POST',body:JSON.stringify({secret:lineCfg.secret,to,text})});
   let j=null; try{j=await r.json();}catch(e){}
   if(!j||!j.ok)throw new Error((j&&j.error)||('中繼沒有回應（HTTP '+r.status+'）'));
-  return true;}
+  return j;}   // j.count = LINE 那邊回報的實際收訊人數
 async function lineSendOrder(no){
   const o=orders.find(x=>x.no===no); if(!o)throw new Error('找不到訂單');
   const to=lineTargetOf(o.supplier);
   if(!to)throw new Error(o.supplier+' 還沒填 LINE 群組 ID');
-  await lineSend(to,orderMsg(o));
+  const j=await lineSend(to,orderMsg(o));
   o.lineSentAt=new Date().toISOString().slice(0,16).replace('T',' ');
-  cloudSaveOrder(o); bumpUsage(lineSizeOf(o.supplier)); persistLocal();
+  // 人數以 LINE 現場回報的為準，抓不到才用廠商設定裡填的
+  const n=Number(j&&j.count)>0?Number(j.count):lineSizeOf(o.supplier);
+  o.lineCount=n;
+  const sup=suppliers.find(x=>x.name===o.supplier);
+  if(sup&&Number(j&&j.count)>0&&Number(sup.lineSize)!==n){sup.lineSize=n;cloudPushShared();}
+  cloudSaveOrder(o); bumpUsage(n); persistLocal();
   return true;}
 function lineDate(iso){return iso?`${+iso.split('-')[1]}/${+iso.split('-')[2]}（${weekday(iso)}）`:'';}
 /* 時價廠商（週報／隨貨）不帶價格——價格本來就是他們報的 */
+/* 底線後面是我們自己記的備註（例：康寶香甜沙拉(整箱出)_客訂要等/不可退換），
+   廠商看了只會困惑，發出去之前拿掉 */
+function lineName(s){const t=String(s||'');const i=t.indexOf('_');
+  if(i>0){const h=t.slice(0,i).trim();if(h)return h;}
+  return t;}
+/* 品名一行、數量一行。品名再長也不會把數字擠爛，數字永遠對齊在左邊 */
 function orderMsg(o){
   const spot=supPricing(o.supplier)!=='固定';
   const items=o.items||[];
   const lines=items.map(i=>{
-    const q=`${i.qty} ${i.unit}`+(i.baseQty?`（＝${fmt(i.baseQty)} ${i.baseUnit}）`:'');
-    if(spot||i.price==null)return `・${i.name}　${q}`;
-    return `・${i.name}　${q}　$${fmt(i.price)}　小計 $${fmt(i.price*i.qty)}`;});
-  let t=`【健人餐廚 ${o.storeName||curStoreName()}】\n叫貨單 ${o.no}\n到貨日：${lineDate(o.deliveryDate)}\n\n`+lines.join('\n');
-  if(!spot&&items.length&&items.every(i=>i.price!=null))t+=`\n\n合計 $${fmt(orderTotal(o))}`;
-  if(spot)t+='\n\n（單價依貴公司當日／本週報價）';
-  t+='\n\n以上麻煩您了，謝謝！';
+    let q=`　${i.qty} ${i.unit}`;
+    if(i.baseQty)q+=`（${fmt(i.baseQty)} ${i.baseUnit}）`;
+    if(!spot&&i.price!=null){
+      q+=`　$${fmt(i.price)}`;
+      if(Number(i.qty)!==1)q+=`　＝$${fmt(i.price*i.qty)}`;
+    }
+    return `${lineName(i.name)}\n${q}`;});
+  let t=`健人餐廚　${o.storeName||curStoreName()}\n${lineDate(o.deliveryDate)}到貨　${o.no}\n\n`+lines.join('\n');
+  let tail=false;
+  if(!spot&&items.length&&items.every(i=>i.price!=null)){t+=`\n\n合計 $${fmt(orderTotal(o))}`;tail=true;}
+  if(spot){t+='\n\n（單價依貴公司當日／本週報價）';tail=true;}
+  t+=(tail?'\n':'\n\n')+'麻煩您了，謝謝！';
   return t;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
@@ -2036,6 +2077,7 @@ window.addEventListener('unhandledrejection',e=>{try{toast('操作沒完成：'+
 migrateAltUnits();
 purgeOldAlias();
 dedupeProducts();
+migrateLineIds();
 render();
 setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
 </script>
