@@ -1865,7 +1865,9 @@ async function afterSubmit(nos){
   for(const o of list){
     let st='off',msg='';
     if(auto){
-      if(!lineTargetOf(o.supplier)){st='nogroup';msg='還沒填 LINE 群組 ID';}
+      const to=lineTargetOf(o.supplier);
+      if(!to){st='nogroup';msg='還沒填 LINE 群組 ID';}
+      else if(!lineIdOk(to)){st='badid';msg=`群組 ID 格式不對，存的是「${to}」（${to.length} 個字）。正確的是 C 開頭再接 32 個英數字，請到「廠商管理 → ${o.supplier}」重貼一次。`;}
       else if(lineUsed()>=lineQuota()){st='quota';msg='本月額度用完了';}
       else{try{await lineSendOrder(o.no);st='ok';}catch(e){st='fail';msg=e.message||'發送失敗';}}
     }
@@ -1873,7 +1875,7 @@ async function afterSubmit(nos){
   }
   const okN=rows.filter(r=>r.st==='ok').length;
   const tag={ok:'<span class="pill done">✓ 已通知</span>',fail:'<span class="pill" style="background:#FBE9E7;color:#C0392B">發送失敗</span>',
-    nogroup:'<span class="pill wait">沒有群組</span>',quota:'<span class="pill" style="background:#FBE9E7;color:#C0392B">額度用完</span>',
+    nogroup:'<span class="pill wait">沒有群組</span>',badid:'<span class="pill" style="background:#FBE9E7;color:#C0392B">群組 ID 有問題</span>',quota:'<span class="pill" style="background:#FBE9E7;color:#C0392B">額度用完</span>',
     off:'<span class="pill wait">未啟用自動</span>'};
   openModal(`<h3>訂單送出了 ✓</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">共 ${list.length} 張叫貨單${auto?`，已自動通知 <b style="color:var(--green)">${okN}</b> 家`:''}。${auto?`<br>本月已用 ${lineUsed()} / ${lineQuota()} 則。`:'<br>還沒設定自動通知，可以先手動傳。'}</div>
@@ -1915,6 +1917,7 @@ async function lineSendOrder(no){
   const o=orders.find(x=>x.no===no); if(!o)throw new Error('找不到訂單');
   const to=lineTargetOf(o.supplier);
   if(!to)throw new Error(o.supplier+' 還沒填 LINE 群組 ID');
+  if(!lineIdOk(to))throw new Error(o.supplier+' 的群組 ID 格式不對：「'+to+'」（'+to.length+' 個字）');
   const j=await lineSend(to,orderMsg(o));
   o.lineSentAt=new Date().toISOString().slice(0,16).replace('T',' ');
   // 人數以 LINE 現場回報的為準，抓不到才用廠商設定裡填的
@@ -1949,6 +1952,20 @@ function orderMsg(o){
   if(spot){t+='\n\n（單價依貴公司當日／本週報價）';tail=true;}
   t+=(tail?'\n':'\n\n')+'麻煩您了，謝謝！';
   return t;}
+/* 每家廠商的群組 ID 體檢表——發不出去的時候一眼看得出是哪家、錯在哪 */
+function lineGroupCheck(){
+  const rows=suppliers.filter(s=>s.lineTo);
+  if(!rows.length)return `<div class="muted" style="font-size:12px;margin:14px 0 4px">還沒有任何廠商填 LINE 群組 ID。到「廠商管理」點廠商就能填。</div>`;
+  return `<div style="margin:16px 0 4px">
+    <div style="font-weight:800;font-size:13.5px;margin-bottom:8px">群組 ID 體檢（${rows.length} 家）</div>
+    ${rows.map(s=>{const id=cleanLineId(s.lineTo),ok=lineIdOk(id);
+      return `<div style="display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)">
+        <span style="flex:0 0 auto;font-weight:800;color:${ok?'var(--green)':'#C0392B'}">${ok?'✓':'✗'}</span>
+        <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(s.name)}</b>
+          <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${Number(s.lineSize)||1} 人`
+            :`存的是「${esc(String(s.lineTo).slice(0,40))}」共 ${String(s.lineTo).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
+      </div>`;}).join('')}
+    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-08-17c</div></div>`;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
   openModal(`<h3>LINE 自動通知設定</h3>
@@ -1967,6 +1984,7 @@ function openLineSetup(){
     <div class="fld"><label>本月免費額度</label><input id="lnQ" type="number" value="${q}"></div>
     <label style="display:flex;gap:9px;align-items:center;font-size:13.5px;cursor:pointer;margin-bottom:6px">
       <input type="checkbox" id="lnOn" ${lineCfg.on!==false?'checked':''} style="width:17px;height:17px"> 送出訂單時自動通知廠商</label>
+    ${lineGroupCheck()}
     <div class="modact">
       <button class="btn grey mini" onclick="lineTest()" style="margin-right:auto">測試連線</button>
       <button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveLineCfg()">儲存</button></div>`,true);}
