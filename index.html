@@ -289,7 +289,15 @@ function weekEndOf(ws){const d=new Date(ws+'T00:00:00');d.setDate(d.getDate()+6)
 function weeklyPrice(sup,ws,pid){const v=weekly[`${sup}|${ws}|${pid}`];return (v===undefined||v===null||v==='')?null:v;}
 // 某商品在某日的單價；null = 尚未定價（時價待填）
 /* 單價 0 ＝ 廠商本週沒供應這項，不能叫貨（跟「還沒報價」是兩回事） */
+/* 週報廠商這一週有兩種「沒價格」，處理方式不一樣（Nina 2026-08-17 決定）：
+   ① 無供應 —— 檔案上明講這週沒有（我們存 0）→ 擋住，叫了也拿不到貨
+   ② 未報價 —— 檔案上根本沒出現這一項（沒有值）→ 可以叫，但標「待計價」，
+      收貨時照貨單填實際單價（跟源發禾鮮同一套流程），才不會擋到來不及上傳價目表的時候。 */
 function weekNA(p,date){return supPricing(p.supplier)==='週報'&&weeklyPrice(p.supplier,weekStartTue(date||isoAt(0)),p.id)===0;}
+function weekNoPrice(p,date){return supPricing(p.supplier)==='週報'&&weeklyPrice(p.supplier,weekStartTue(date||isoAt(0)),p.id)==null;}
+function weekBlocked(p,date){return weekNA(p,date);}
+function weekBlockMsg(p){return '「'+p.name+'」本週廠商沒有供應，不能叫貨';}
+function noPriceMsg(p){return '「'+p.name+'」本週未報價，會以「待計價」送出，收貨時再填實際單價';}
 function priceFor(p,date){const m=supPricing(p.supplier);
   if(m==='隨貨')return null;
   if(m==='週報')return weeklyPrice(p.supplier,weekStartTue(date||isoAt(0)),p.id);
@@ -1052,12 +1060,12 @@ function rRecalc(i){const q=document.querySelector(`[data-ri="${i}"][data-rf="qt
   if(q&&pr&&am)am.value=Math.round(((Number(q.value)||0)*(Number(pr.value)||0))*100)/100;}
 function saveReturn(){
   rSyncTop();
-  if(!rDraft.supplier){alert('請選廠商');return;}
-  if(!rDraft.date){alert('請填銷退日期');return;}
+  /* 用 toast 不用 alert：alert 在手機上很突兀，而且會擋住整個畫面 */
+  if(!rDraft.supplier){toast('請選廠商');return;}
+  if(!rDraft.date){toast('請填銷退日期');return;}
   rDraft.items=(rDraft.items||[]).filter(i=>(i.name||'').trim()!=='');
   const tot=rDraft.override!==''&&rDraft.override!=null?Number(rDraft.override):rSum();
-  if(!(tot>0)){alert('請填「這張單要扣多少」，不然不會從貨款扣掉。');return;}
-  if(!(tot>0)){alert('金額要大於 0。請填品項金額，或直接在「金額總計」填退貨單上的總金額。');return;}
+  if(!(tot>0)){toast('請填「這張單要扣多少」，不然不會從貨款扣掉');return;}
   rDraft.store=selStore;
   if(!rDraft.id){rDraft.id='R'+String(Date.now()).slice(-8);rDraft.createdAt=isoAt(0);returns.push(rDraft);}
   else{const i=returns.findIndex(x=>x.id===rDraft.id);if(i>=0)returns[i]=rDraft;}
@@ -1647,7 +1655,7 @@ function addFavToCart(pid){if(naGuard(pid))return;const el=document.getElementBy
   const q=Math.max(1,parseInt(el&&el.value)||defQty(pid));cart[pid]=q;persist();badges();toast('已加入購物車 🛒');}
 function addAllFav(sup){let n=0,skip=0;
   products.filter(p=>p.supplier===sup&&isFav(p.id)).forEach(p=>{
-    if(weekNA(p)){skip++;return;}                       // 本週無供應的不加進去
+    if(weekBlocked(p)){skip++;return;}                  // 本週無供應／未報價的都不加進去
     const el=document.getElementById('fq_'+p.id);
     cart[p.id]=Math.max(1,parseInt(el&&el.value)||defQty(p.id));n++;});
   persist();badges();toast(`已把 ${esc(sup)} 的 ${n} 項加入購物車 🛒${skip?`（${skip} 項本週無供應已跳過）`:''}`);}
@@ -1678,8 +1686,8 @@ function vFav(){
       <td><div class="pname"><span class="thumb">📦</span><div>${esc(p.name)} ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</div></div></td>
       <td class="muted">${esc(p.cat)}</td>
       <td class="right">${priceCell(p)}</td>
-      <td class="center">${weekNA(p)?'<span class="muted" style="font-size:12.5px">本週無供應</span>':`<div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="stepper"><button onclick="stepFav('${p.id}',-1)">−</button><input id="fq_${p.id}" value="${defQty(p.id)}"><button onclick="stepFav('${p.id}',1)">＋</button></span>${unitSwitch(p)}</div>${altHint(p,defQty(p.id))}`}</td>
-      <td class="right">${weekNA(p)?'':`<button class="btn mini" onclick="addFavToCart('${p.id}')">加入 🛒</button>`}</td>
+      <td class="center">${weekBlocked(p)?`<span class="muted" style="font-size:12.5px">本週無供應</span>`:`<div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="stepper"><button onclick="stepFav('${p.id}',-1)">−</button><input id="fq_${p.id}" value="${defQty(p.id)}"><button onclick="stepFav('${p.id}',1)">＋</button></span>${unitSwitch(p)}</div>${altHint(p,defQty(p.id))}`}</td>
+      <td class="right">${weekBlocked(p)?'':`<button class="btn mini" onclick="addFavToCart('${p.id}')">加入 🛒</button>`}</td>
       <td class="right"><button class="star" title="從最愛移除" onclick="toggleFav('${p.id}')">★</button></td></tr>`).join('')}</tbody></table></div>`;}).join('')}`;
 }
 /* ====== 我要叫貨 ====== */
@@ -1707,9 +1715,9 @@ function rowProduct(p){const q=cart[p.id]||1;
   return `<tr><td><div class="pname"><span class="thumb">📦</span><div>${esc(p.name)} ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</div></div></td>
    <td>${esc(p.supplier)} <span class="pill ${supType(p.supplier)==='月結'?'m':'c'}" style="transform:scale(.85)">${supType(p.supplier)}</span></td><td>${esc(p.cat)}</td>
    <td class="right">${priceCell(p)}</td>
-   <td class="center">${weekNA(p)?`<span class="muted" style="font-size:12.5px">本週無供應，不能叫貨</span>`
+   <td class="center">${weekBlocked(p)?`<span class="muted" style="font-size:12.5px">本週無供應，不能叫貨</span>`
      :`<div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center"><span class="stepper"><button onclick="stepCart('${p.id}',-1)">−</button><input id="q_${p.id}" value="${q}" onchange="setCart('${p.id}',this.value)"><button onclick="stepCart('${p.id}',1)">＋</button></span>${unitSwitch(p)}
-     <button class="btn mini" onclick="addCart('${p.id}')">加入 🛒</button></div>${altHint(p,q)}`}</td>
+     <button class="btn mini" onclick="addCart('${p.id}')">加入 🛒</button></div>${altHint(p,q)}${weekNoPrice(p)?`<div style="font-size:11px;color:#B9741C;margin-top:4px">本週未報價 · 會以待計價送出</div>`:''}`}</td>
    <td class="center"><button class="star ${isFav(p.id)?'':'off'}" title="${isFav(p.id)?'從最愛移除':'加入我的最愛'}" onclick="toggleFav('${p.id}')">${isFav(p.id)?'★':'☆'}</button></td></tr>`;}
 /* ====== 商品與價格（建置用） ====== */
 function vProdAdmin(){
@@ -1748,8 +1756,8 @@ function vOrdering(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id
     <thead><tr><th>產品</th><th>供應商</th><th class="center">數量</th><th class="right">單價</th><th class="right">小計</th><th></th></tr></thead>
     <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.supplier)}</td>
       <td class="center"><div style="display:inline-flex;gap:8px;align-items:center"><span class="stepper"><button onclick="stepCart('${i.id}',-1)">−</button><input value="${i.qty}" onchange="setCart('${i.id}',this.value)"><button onclick="stepCart('${i.id}',1)">＋</button></span><b style="font-size:13.5px;color:var(--muted)">${esc(i._u)}</b></div>${i._f>1?`<div class="muted" style="font-size:11px;margin-top:3px">＝ ${fmt(i.qty*i._f)} ${esc(i.unit)}</div>`:''}</td>
-      <td class="right">${weekNA(i)?'<span class="pill" style="background:#FBE9E7;color:#C0392B">本週無供應</span>':i._lp==null?`<span class="pill c">時價</span> <b>/ ${esc(i._u)}</b>`:'$'+fmt(i._lp)+' / '+esc(i._u)}</td><td class="right">${i._lp==null?'<span class="muted">待計價</span>':'<b>$'+fmt(i._lp*i.qty)+'</b>'}</td><td class="right"><button class="btn grey mini" onclick="setCart('${i.id}',0)">移除</button></td></tr>`).join('')}</tbody></table></div>
-  <div class="sum">${items.some(i=>supTax(i.supplier)==='未稅')?`<span class="pill" style="background:#FDF0DC;color:#B9741C">含未稅報價廠商，結算時另加 5% 營業稅</span>`:''}${anyTBD?`<span class="pill c">含時價品項，金額於收貨時確定</span>`:''}<span class="muted">共 ${items.length} 項</span><span>合計 <b>$${fmt(total)}</b>${anyTBD?'<span class="muted" style="font-size:12px"> +時價</span>':''}</span>${items.some(i=>weekNA(i))?`<span class="pill" style="background:#FBE9E7;color:#C0392B">有本週無供應的品項，請先移除</span>`:''}<button class="btn green" id="submitBtn" ${items.some(i=>weekNA(i))?'disabled style="opacity:.45"':''} onclick="submitOrder()">送出訂單</button></div>`
+      <td class="right">${weekBlocked(i)?`<span class="pill" style="background:#FBE9E7;color:#C0392B">本週無供應</span>`:weekNoPrice(i)?`<span class="pill" style="background:#FDF0DC;color:#B9741C">本週未報價</span> <b>/ ${esc(i._u)}</b><div class="muted" style="font-size:11px;margin-top:3px">收貨時填單價</div>`:i._lp==null?`<span class="pill c">時價</span> <b>/ ${esc(i._u)}</b>`:'$'+fmt(i._lp)+' / '+esc(i._u)}</td><td class="right">${i._lp==null?'<span class="muted">待計價</span>':'<b>$'+fmt(i._lp*i.qty)+'</b>'}</td><td class="right"><button class="btn grey mini" onclick="setCart('${i.id}',0)">移除</button></td></tr>`).join('')}</tbody></table></div>
+  <div class="sum">${items.some(i=>supTax(i.supplier)==='未稅')?`<span class="pill" style="background:#FDF0DC;color:#B9741C">含未稅報價廠商，結算時另加 5% 營業稅</span>`:''}${anyTBD?`<span class="pill c">含時價品項，金額於收貨時確定</span>`:''}<span class="muted">共 ${items.length} 項</span><span>合計 <b>$${fmt(total)}</b>${anyTBD?'<span class="muted" style="font-size:12px"> +時價</span>':''}</span>${items.some(i=>weekNoPrice(i))?`<span class="pill" style="background:#FDF0DC;color:#B9741C">有本週未報價的品項，收貨時要填實際單價</span>`:''}${items.some(i=>weekBlocked(i))?`<span class="pill" style="background:#FBE9E7;color:#C0392B">有本週無供應的品項，請先移除</span>`:''}<button class="btn green" id="submitBtn" ${items.some(i=>weekBlocked(i))?'disabled style="opacity:.45"':''} onclick="submitOrder()">送出訂單</button></div>`
   :`<div class="card"><div class="empty">🛒 購物車是空的。<br><span style="font-size:13px">先到「我的最愛」或「我要叫貨」把要叫的貨加進購物車，再點右上角 🛒 回到這裡送出。</span>
     <div style="margin-top:18px;display:flex;gap:9px;justify-content:center">
       <button class="btn" onclick="go('fav')">⭐ 我的最愛</button>
@@ -1833,13 +1841,15 @@ function bind(){const g=id=>document.getElementById(id);
 function stepCart(id,d){setCart(id,Math.max(0,(cart[id]||1)+d));}
 function setCart(id,v){v=Math.max(0,parseInt(v)||0);if(v>0&&naGuard(id))return;if(v===0)delete cart[id];else cart[id]=v;persist();render();}
 function naGuard(id){const p=products.find(x=>x.id===id);
-  if(p&&weekNA(p)){toast('「'+p.name+'」本週廠商沒有供應，不能叫貨');return true;}return false;}
-function addCart(id){if(naGuard(id))return;const inp=document.getElementById('q_'+id);const q=Math.max(1,parseInt(inp&&inp.value)||1);cart[id]=q;persist();toast('已加入購物車 🛒');badges();}
+  if(p&&weekBlocked(p)){toast(weekBlockMsg(p));return true;}return false;}
+function addCart(id){if(naGuard(id))return;const inp=document.getElementById('q_'+id);const q=Math.max(1,parseInt(inp&&inp.value)||1);cart[id]=q;persist();
+  const p=products.find(x=>x.id===id);
+  toast(p&&weekNoPrice(p)?noPriceMsg(p):'已加入購物車 🛒');badges();}
 async function submitOrder(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id=>({...products.find(p=>p.id===id),qty:cart[id]}));
   if(!items.length){toast('購物車是空的');return;}let pick=items;if(oForm.supplier)pick=items.filter(i=>i.supplier===oForm.supplier);
   if(!pick.length){toast('該供應商沒有商品');return;}
-  const bad=pick.filter(i=>weekNA(i));
-  if(bad.length){toast('「'+bad[0].name+'」本週廠商沒有供應，請先從購物車移除');return;}const bySup={};pick.forEach(i=>{(bySup[i.supplier]=bySup[i.supplier]||[]).push(i);});
+  const bad=pick.filter(i=>weekBlocked(i));
+  if(bad.length){toast(weekBlockMsg(bad[0])+'，請先從購物車移除');return;}const bySup={};pick.forEach(i=>{(bySup[i.supplier]=bySup[i.supplier]||[]).push(i);});
   const btn=document.getElementById('submitBtn'); if(btn){btn.disabled=true;btn.textContent='送出中…';}
   const made=[];
   try{
