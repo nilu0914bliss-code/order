@@ -1771,10 +1771,30 @@ function vOrdering(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id
     <div style="margin-top:18px;display:flex;gap:9px;justify-content:center">
       <button class="btn" onclick="go('fav')">⭐ 我的最愛</button>
       <button class="btn line" onclick="go('products')">我要叫貨</button></div></div></div>`}`;}
-/* ====== 已送出的訂單 ====== */
-function vOrders(){return `<div class="crumb">首頁 / 採購</div><h1>已送出的訂單</h1>
-  <div class="muted" style="margin-bottom:14px">已經送出去的叫貨單紀錄，可查金額與收貨狀態。</div>
-  ${(()=>{const mine=storeOrders();return mine.length?mine.map(o=>`<div class="card ${o.status==='已作廢'?'voided':''}" style="padding:0;overflow:hidden">
+/* ====== 已送出的訂單 ======
+   跟「收貨確認」的分工：這頁是<紀錄>（查得到全部、可改可作廢可退貨），
+   收貨確認是<現場簽收>（只列今天要簽的那幾張）。待收貨的卡片放一顆「去收貨」直接跳過去。 */
+let ordFilter='all';
+function ordCount(k){const m=storeOrders();
+  if(k==='wait')return m.filter(o=>o.status==='待驗收').length;
+  if(k==='done')return m.filter(o=>o.status==='已驗收').length;
+  if(k==='void')return m.filter(o=>o.status==='已作廢').length;
+  return m.filter(o=>o.status!=='已作廢').length;}
+function setOrdFilter(k){ordFilter=k;render();}
+function vOrders(){
+  const all=storeOrders();
+  const list=ordFilter==='wait'?all.filter(o=>o.status==='待驗收')
+    :ordFilter==='done'?all.filter(o=>o.status==='已驗收')
+    :ordFilter==='void'?all.filter(o=>o.status==='已作廢')
+    :all.filter(o=>o.status!=='已作廢');
+  const chip=(k,label)=>`<button class="btn ${ordFilter===k?'':'grey'} mini" onclick="setOrdFilter('${k}')">${label} ${ordCount(k)}</button>`;
+  return `<div class="crumb">首頁 / 採購</div><h1>已送出的訂單</h1>
+  <div class="muted" style="margin-bottom:12px;line-height:1.8">叫貨單的<b style="color:var(--ink)">紀錄本</b>——查金額、改數量、作廢、登錄退貨都在這裡。<br>
+    貨到了要確認請去<b style="color:var(--ink)">「收貨確認」</b>，那頁只列<b style="color:var(--ink)">待確認收貨</b>的單，欄位比較好按。</div>
+  <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    ${chip('all','全部')}${chip('wait','待確認收貨')}${chip('done','已收貨')}${chip('void','已作廢')}
+    <span class="muted" style="font-size:11.5px;margin-left:auto">「全部」不含已作廢</span></div>
+  ${(()=>{const mine=list;return mine.length?mine.map(o=>`<div class="card ${o.status==='已作廢'?'voided':''}" style="padding:0;overflow:hidden">
     <div class="ordhead"><div><b>${o.no}</b> <span class="muted">· 📍${esc(o.storeName||'—')}</span><br><span class="muted" style="font-size:12.5px">供應商：${o.supplier}｜下單 ${mmdd(o.date)}｜到貨 ${mmdd(o.deliveryDate)}${o.receivedAt?`｜<b style="color:var(--green)">貨單 ${mmdd(o.receivedAt)}</b>`:''}</span></div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="pill ${o.status==='已驗收'?'done':o.status==='已作廢'?'void':'wait'}">${o.status}</span>
@@ -1782,11 +1802,12 @@ function vOrders(){return `<div class="crumb">首頁 / 採購</div><h1>已送出
         ${o.status!=='已作廢'?`<button class="btn line mini" onclick="lineResend('${o.no}')">📤 ${o.lineSentAt?'重發':'通知廠商'}</button>`:''}
         ${o.photo?`<button class="btn grey mini" onclick="viewOrderPhoto('${o.no}')">📷 貨單</button>`:''}
         ${o.status==='已作廢'?`<button class="btn grey mini" onclick="restoreOrder('${o.no}')">還原</button>`
-          :`<button class="btn grey mini" onclick="openEditOrder('${o.no}')">修改 / 作廢</button>
+          :`${o.status==='待驗收'?`<button class="btn green mini" title="貨到了？去收貨確認頁確認" onclick="go('receiving')">✓ 去確認收貨</button>`:''}
+            <button class="btn grey mini" onclick="openEditOrder('${o.no}')">修改 / 作廢</button>
             <button class="btn grey mini" title="拿到廠商退貨單時登錄" onclick="returnFromOrder('${o.no}')">↩︎ 退貨</button>`}</div></div>
     <table><tbody>${o.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="center muted">${i.qty} ${esc(i.unit)}</td><td class="right">${i.price==null?'<span class="muted">時價待計</span>':'$'+fmt(i.price*i.qty)}</td></tr>`).join('')}
       <tr><td class="right" colspan="2"><b>合計</b></td><td class="right"><b>$${fmt(orderTotal(o))}</b></td></tr></tbody></table></div>`).join('')
-    :`<div class="card"><div class="empty">${esc(curStoreName())} 還沒有訂單。</div></div>`;})()}`;}
+    :`<div class="card"><div class="empty">${ordFilter==='all'?esc(curStoreName())+' 還沒有訂單。':'這個分類目前沒有訂單。'}</div></div>`;})()}`;}
 /* ====== 驗收列表 ====== */
 
 function openEditOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
@@ -1812,7 +1833,9 @@ function restoreOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
   o.status='待驗收';cloudSaveOrder(o);persist();toast('已還原為待收貨');render();}
 function vReceiving(){const wait=storeOrders().filter(o=>o.status!=='已驗收'&&o.status!=='已作廢');
   return `<div class="crumb">首頁 / 收貨</div><h1>收貨確認</h1>
-  <div class="card"><span class="muted">按「確認收貨」代表這張單貨已到，金額才會算進「貨款結算」。<br>
+  <div class="card"><span class="muted"><b style="color:var(--ink)">這頁只列待確認收貨的 ${wait.length} 張單</b>，貨到門口時用這頁最快。<br>
+    想查舊單、改數量、作廢或登錄退貨，請去<a style="color:var(--green);cursor:pointer;font-weight:700" onclick="go('orders')">「已送出的訂單」</a>。<br><br>
+    按「確認收貨」代表這張單貨已到，金額才會算進「貨款結算」。<br>
     <b style="color:var(--ink)">貨單日期請照廠商貨單上印的日期填</b>（預設今天）——這樣月底跟廠商對帳一定合得起來，跨月那幾天尤其重要。</span></div>
   ${wait.length?wait.map(o=>{const tbd=orderTBD(o);
     return `<div class="card" style="padding:0;overflow:hidden">
@@ -1839,7 +1862,8 @@ function vReceiving(){const wait=storeOrders().filter(o=>o.status!=='已驗收'&
       <td class="right">${i.price==null
         ?`<span class="mlab">實際單價</span><input style="width:110px;text-align:right;display:inline-block" type="number" step="0.01" placeholder="單價" data-ip="${o.no}|${idx}">`
         :`$${fmt(i.price)} × ${i.qty} = <b>$${fmt(i.price*i.qty)}</b>`}</td></tr>`).join('')}</tbody></table></div>`;}).join('')
-    :`<div class="card"><div class="empty">目前沒有待收貨的訂單。</div></div>`}`;}
+    :`<div class="card"><div class="empty">目前沒有待確認收貨的訂單 ✓<br><span style="font-size:13px">貨都確認完了。要查舊單或改東西，去「已送出的訂單」。</span>
+      <div style="margin-top:16px"><button class="btn line" onclick="go('orders')">已送出的訂單 ›</button></div></div></div>`}`;}
 /* ====== 綁定/動作 ====== */
 function bind(){const g=id=>document.getElementById(id);
   if(page==='dashboard')g('dMonth')&&(g('dMonth').onchange=e=>{selMonth=e.target.value;persist();render();});
@@ -1999,7 +2023,7 @@ function lineGroupCheck(){
           <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${Number(s.lineSize)||1} 人`
             :`存的是「${esc(String(s.lineTo).slice(0,40))}」共 ${String(s.lineTo).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
       </div>`;}).join('')}
-    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-08-17g</div></div>`;}
+    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-08-25a</div></div>`;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
   openModal(`<h3>LINE 自動通知設定</h3>
