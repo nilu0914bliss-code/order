@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>健人餐廚 叫貨系統</title>
+<title>2AM SHOPPING 叫貨系統</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="favicon.png">
@@ -12,22 +12,25 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="叫貨">
 <meta name="application-name" content="叫貨">
-<meta name="theme-color" content="#F4EFE6">
+<meta name="theme-color" content="#DFDFDB">
 <style>
   :root{
-    --green:#1B6B47; --green-d:#14563a; --green-soft:#E7F0EA; --green-tint:#F1F6F2;
-    --amber:#EE9528; --amber-soft:#FDF0DC; --grad:linear-gradient(135deg,#F9C471 0%,#EE9528 100%);
-    --bg:#F4EFE6; --card:#ffffff; --ink:#2A2823; --muted:#8E8981; --line:#EFEAE1;
-    --red:#C9503C; --red-soft:#FBEDEA; --warn:#D98A20; --warn-soft:#FDF2E0;
-    --shadow:0 2px 16px rgba(120,95,60,.07); --shadow-lg:0 10px 40px rgba(120,95,60,.14);
+    --green:#2F6B4F; --green-d:#1F4A36; --green-soft:#E3EDE7; --green-tint:#F0F5F2;
+    --amber:#7C6015; --amber-soft:#F7EFD9; --grad:linear-gradient(135deg,#55554F 0%,#3D3D3D 100%);
+    --bg:#DFDFDB; --card:#ffffff; --ink:#3D3D3D; --muted:#7E7E78; --line:#E2E2DE;
+    --red:#B04A32; --red-soft:#F8EAE6; --warn:#7C6015; --warn-soft:#F7EFD9;
+    --shadow:0 2px 16px rgba(61,61,61,.07); --shadow-lg:0 10px 40px rgba(61,61,61,.12);
     --r:20px; --r-sm:14px;
+    --yellow:#DCB849; --pink:#DFAEBB; --blue:#3A5470;
+    /* 這三個以前被用到但沒定義，等於一直是無效值 —— 補上 */
+    --blue-soft:#E7EAEF; --cash:#F6E6EB; --orange-d:#7C6015;
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
     background:var(--bg);color:var(--ink);font-size:14px;-webkit-font-smoothing:antialiased;letter-spacing:.01em;}
   .app{display:block;min-height:100vh;}
   /* ---- sidebar ---- */
-  aside{width:246px;background:#FFFDFA;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;
+  aside{width:246px;background:#FFFFFF;flex-shrink:0;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;
     overflow-y:auto;z-index:60;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);box-shadow:var(--shadow-lg);}
   aside.open{transform:translateX(0);}
   .backdrop{position:fixed;inset:0;background:rgba(42,40,35,.28);backdrop-filter:blur(3px);z-index:55;opacity:0;visibility:hidden;transition:opacity .25s;}
@@ -47,7 +50,7 @@
   .navitem.active{background:var(--green);color:#fff;font-weight:600;box-shadow:0 3px 12px rgba(27,107,71,.26);}
   main{width:100%;min-width:0;}
   /* ---- topbar ---- */
-  .topbar{height:66px;background:rgba(244,239,230,.85);backdrop-filter:blur(12px);display:flex;align-items:center;padding:0 26px;gap:14px;position:sticky;top:0;z-index:10;}
+  .topbar{height:66px;background:rgba(223,223,219,.88);backdrop-filter:blur(12px);display:flex;align-items:center;padding:0 26px;gap:14px;position:sticky;top:0;z-index:10;}
   .topbar .sp{flex:1;}
   .storeSwitch{display:flex;align-items:center;gap:4px;font-size:13.5px;font-weight:600;background:#fff;padding:7px 10px 7px 14px;border-radius:999px;box-shadow:var(--shadow);}
   .storeSwitch select{border:none;background:transparent;font-weight:700;color:var(--green);padding:2px 4px;width:auto;cursor:pointer;box-shadow:none;}
@@ -61,9 +64,9 @@
   .card{background:var(--card);border:none;border-radius:var(--r);padding:22px;margin-bottom:16px;box-shadow:var(--shadow);}
   .filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:14px;align-items:end;}
   .field label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;}
-  input,select{font-family:inherit;font-size:14px;padding:11px 14px;border:1.5px solid transparent;border-radius:12px;width:100%;background:#FAF7F2;color:var(--ink);transition:.15s;}
+  input,select{font-family:inherit;font-size:14px;padding:11px 14px;border:1.5px solid transparent;border-radius:12px;width:100%;background:#F4F4F1;color:var(--ink);transition:.15s;}
   input:focus,select:focus{outline:none;border-color:var(--green);background:#fff;}
-  input::placeholder{color:#B8B2A8;}
+  input::placeholder{color:#A5A59F;}
   /* ---- buttons ---- */
   .btn{background:var(--green);color:#fff;border:none;padding:11px 22px;border-radius:999px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;
     transition:.18s;box-shadow:0 3px 12px rgba(27,107,71,.24);}
@@ -71,22 +74,22 @@
   .btn.line{background:#fff;color:var(--muted);box-shadow:var(--shadow);} .btn.line:hover{background:#fff;color:var(--ink);}
   .btn.mini{padding:7px 15px;font-size:12.5px;}
   .btn.green{background:var(--green);}
-  .btn.grey{background:#F2EEE7;color:var(--ink);box-shadow:none;} .btn.grey:hover{background:#E9E4DB;}
-  .btn.amber{background:var(--grad);box-shadow:0 3px 12px rgba(238,149,40,.3);}
+  .btn.grey{background:#EDEDEA;color:var(--ink);box-shadow:none;} .btn.grey:hover{background:#E3E3DF;}
+  .btn.amber{background:linear-gradient(135deg,#8F6D18 0%,#6B5312 100%);box-shadow:0 3px 12px rgba(107,83,18,.26);}
   /* ---- table ---- */
   table{width:100%;border-collapse:collapse;}
   th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:13px 18px;border-bottom:1px solid var(--line);letter-spacing:.03em;}
   td{padding:14px 18px;border-bottom:1px solid var(--line);vertical-align:middle;}
   tbody tr:last-child td{border-bottom:none;}
-  tbody tr{transition:.12s;} tbody tr:hover{background:#FCFAF6;}
+  tbody tr{transition:.12s;} tbody tr:hover{background:#F7F7F5;}
   tr.low td{background:var(--amber-soft);}
   .thumb{width:44px;height:44px;border-radius:13px;background:var(--green-tint);display:inline-flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;}
   .pname{display:flex;align-items:center;gap:13px;}
-  .spec{font-size:11px;background:#F2EEE7;color:var(--muted);padding:3px 8px;border-radius:7px;margin-left:3px;}
-  .unitsw{display:inline-flex;background:#F2EEE7;border-radius:999px;padding:2px;gap:2px;}
+  .spec{font-size:11px;background:#EDEDEA;color:var(--muted);padding:3px 8px;border-radius:7px;margin-left:3px;}
+  .unitsw{display:inline-flex;background:#EDEDEA;border-radius:999px;padding:2px;gap:2px;}
   .unitsw button{border:none;background:transparent;color:var(--muted);font-size:12.5px;font-weight:700;padding:6px 11px;border-radius:999px;cursor:pointer;}
   .unitsw button.on{background:var(--green);color:#fff;}
-  .stepper{display:inline-flex;align-items:center;background:#FAF7F2;border-radius:999px;overflow:hidden;padding:2px;}
+  .stepper{display:inline-flex;align-items:center;background:#F4F4F1;border-radius:999px;overflow:hidden;padding:2px;}
   .stepper button{width:28px;height:28px;border:none;background:#fff;font-size:15px;cursor:pointer;color:var(--ink);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.07);}
   .stepper button:hover{background:var(--green);color:#fff;}
   .stepper input{width:40px;border:none;background:transparent;text-align:center;border-radius:0;padding:6px 0;font-weight:600;}
@@ -95,7 +98,7 @@
   .pill{font-size:11px;padding:4px 11px;border-radius:999px;font-weight:700;white-space:nowrap;letter-spacing:.02em;}
   .pill.wait{background:var(--warn-soft);color:var(--warn);} .pill.done{background:var(--green-soft);color:var(--green);}
   .pill.low{background:var(--red);color:#fff;}
-  .pill.void{background:#EFEAE1;color:#8E8981;}
+  .pill.void{background:#E2E2DE;color:#7E7E78;}
   .voided{opacity:.55;}
   .pill.m{background:var(--green-soft);color:var(--green);} .pill.c{background:var(--amber-soft);color:var(--amber);}
   .muted{color:var(--muted);} .empty{text-align:center;color:var(--muted);padding:48px;} .right{text-align:right;}.center{text-align:center;}
@@ -126,7 +129,7 @@
     color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;margin-bottom:9px;transition:.15s;}
   .switchbtn:hover{border-color:var(--green);color:var(--green);}
   .storeopt .last{display:block;font-size:11.5px;color:var(--green);font-weight:600;margin-top:2px;}
-  .gerr{background:#FDECEA;color:#B3261E;border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px;line-height:1.6;}
+  .gerr{background:#F8EAE6;color:#8A3826;border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px;line-height:1.6;}
   @supports(padding:env(safe-area-inset-top)){
     .topbar{height:auto;min-height:66px;padding-top:calc(9px + env(safe-area-inset-top));padding-bottom:9px;}
     .app,.gate{padding-bottom:env(safe-area-inset-bottom);}}
@@ -136,14 +139,14 @@
   .modal label{font-size:12.5px;color:var(--muted);font-weight:600;display:block;margin-bottom:6px;}
   .modact{display:flex;gap:9px;justify-content:flex-end;margin-top:8px;} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
-  .ordhead{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;background:#FCFAF6;}
+  .ordhead{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;background:#F7F7F5;}
   /* ---- KPI ---- */
   .kpis{display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr;gap:14px;margin-bottom:16px;}
   .kpi{background:var(--card);border:none;border-radius:var(--r);padding:20px 22px;box-shadow:var(--shadow);}
   .kpi.hero{color:#fff;background:var(--grad);}
-  .kpi.hero.good{background:linear-gradient(135deg,#35A876 0%,#1B6B47 100%);}
-  .kpi.hero.warn{background:linear-gradient(135deg,#F9C471 0%,#EE9528 100%);}
-  .kpi.hero.bad{background:linear-gradient(135deg,#E4816E 0%,#C9503C 100%);}
+  .kpi.hero.good{background:linear-gradient(135deg,#37855B 0%,#1F4A36 100%);}
+  .kpi.hero.warn{background:linear-gradient(135deg,#8F6D18 0%,#6B5312 100%);}
+  .kpi.hero.bad{background:linear-gradient(135deg,#C97E68 0%,#B04A32 100%);}
   .kpi.hero .lab,.kpi.hero .sub{color:rgba(255,255,255,.88);}
   .kpi.hero .big{color:#fff !important;}
   .kpi.hero .status{background:rgba(255,255,255,.22) !important;color:#fff !important;}
@@ -155,20 +158,20 @@
   .kpi .sub{font-size:12px;color:var(--muted);margin-top:9px;}
   .status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;margin-top:11px;}
   .status.good{background:var(--green-soft);color:var(--green);} .status.warn{background:var(--warn-soft);color:var(--warn);} .status.bad{background:var(--red-soft);color:var(--red);}
-  .gauge{height:8px;background:#F0EBE2;border-radius:999px;overflow:hidden;margin-top:14px;} .gauge>i{display:block;height:100%;border-radius:999px;transition:width .5s;}
+  .gauge{height:8px;background:#EFEFEC;border-radius:999px;overflow:hidden;margin-top:14px;} .gauge>i{display:block;height:100%;border-radius:999px;transition:width .5s;}
   /* ---- misc ---- */
   .conn{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;padding:7px 15px;border-radius:999px;margin-bottom:16px;}
-  .conn.ok{background:var(--green-soft);color:var(--green);} .conn.load{background:#F2EEE7;color:var(--muted);} .conn.fail{background:var(--warn-soft);color:var(--warn);}
+  .conn.ok{background:var(--green-soft);color:var(--green);} .conn.load{background:#EDEDEA;color:var(--muted);} .conn.fail{background:var(--warn-soft);color:var(--warn);}
   .dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block;}
   .star{font-size:20px;cursor:pointer;color:var(--amber);user-select:none;transition:.15s;line-height:1;background:none;border:none;padding:4px;}
-  .star.off{color:#D9D3C8;} .star:hover{transform:scale(1.18);}
+  .star.off{color:#D2D2CE;} .star:hover{transform:scale(1.18);}
   .chips{display:flex;gap:8px;flex-wrap:wrap;}
-  .chip{padding:8px 15px;border-radius:999px;background:#FAF7F2;font-size:13.5px;font-weight:600;cursor:pointer;border:none;color:var(--ink);transition:.15s;}
-  .chip:hover{background:#F0EBE2;} .chip.on{background:var(--green);color:#fff;box-shadow:0 3px 12px rgba(27,107,71,.24);}
+  .chip{padding:8px 15px;border-radius:999px;background:#F4F4F1;font-size:13.5px;font-weight:600;cursor:pointer;border:none;color:var(--ink);transition:.15s;}
+  .chip:hover{background:#EFEFEC;} .chip.on{background:var(--green);color:#fff;box-shadow:0 3px 12px rgba(27,107,71,.24);}
   .chip small{opacity:.7;font-weight:400;margin-left:4px;}
   .barrow{display:flex;align-items:center;gap:12px;margin:9px 0;}
   .barrow .nm{width:132px;font-size:13px;flex-shrink:0;}
-  .barrow .track{flex:1;height:12px;background:#F4F0E9;border-radius:999px;overflow:hidden;}
+  .barrow .track{flex:1;height:12px;background:#F1F1EE;border-radius:999px;overflow:hidden;}
   .barrow .fill{height:100%;background:var(--green);border-radius:999px;transition:width .5s;}
   .barrow .pc{width:104px;text-align:right;font-size:12.5px;flex-shrink:0;}
 
@@ -183,7 +186,7 @@
     table:not(.keepcols) tbody tr:last-child{border-bottom:none;}
     table:not(.keepcols) td{border:none !important;padding:3px 0 !important;text-align:left !important;white-space:normal;}
     table:not(.keepcols) td:first-child{font-weight:600;font-size:14.5px;}
-    table:not(.keepcols) tfoot tr{background:#FCFAF6;}
+    table:not(.keepcols) tfoot tr{background:#F7F7F5;}
     .mlab{display:inline;color:var(--muted);font-size:12.5px;font-weight:600;margin-right:6px;}
     .pname{gap:10px;} .thumb{width:38px;height:38px;font-size:16px;}
     /* 手機：加大按鍵，廚房濕手也好按 */
@@ -259,7 +262,8 @@
         <label class="btn grey mini" style="cursor:pointer;text-align:center">📂 還原備份
           <input type="file" accept=".json,application/json" style="display:none" onchange="importBackup(this)"></label>
         <button class="btn grey mini" onclick="loadDemo()">🎬 載入示範資料</button>
-        <button class="btn grey mini" onclick="resetAllData()">重設（清空所有資料）</button></div></div>
+        <button class="btn grey mini" onclick="resetAllData()">重設（清空所有資料）</button>
+        <button class="btn grey mini" id="migBtn" style="display:none" onclick="openMig()">🏗 搬家工具</button></div></div>
   </aside>
   <main>
     <div class="topbar"><button class="hamb" onclick="toggleMenu()">☰</button>
@@ -307,6 +311,15 @@ function orderTBD(o){return o.items.some(i=>i.price===null||i.price===undefined|
 let STORES=[{id:'jr',name:'健人餐廚巨城店'}];
 let fb={status:'loading',revenue:null};
 let selStore=load('p_selstore')||'';
+/* 品牌名稱：目前寫死健人餐廚，接上後台之後由這家客戶的資料帶入 */
+let BRAND=load('p_brand')||'健人餐廚';
+const PRODUCT='2AM SHOPPING';          // 妳的產品名，登入前只會看到這個
+/* 專員服務：官方 LINE。Nina 給我 @ID 之後改這一行就好 */
+const SUPPORT_LINE='https://line.me/R/ti/p/%40175viqcq';  // 2AM 官方 LINE（@175viqcq）
+const SUPPORT_NAME='2AM SHOPPING 官方 LINE';
+function setBrand(n){ if(!n)return; BRAND=n; try{store.set('p_brand',JSON.stringify(n));}catch(e){} }
+/* 登入前分頁顯示產品名，進到店裡之後才換成客戶的品牌 */
+function applyTitle(inApp){ document.title=(inApp?BRAND:PRODUCT)+' 叫貨系統'; }
 let selMonth=load('p_selmonth')||curMonth();
 let products=load('p_products')||seedProducts();
 let orders  =load('p_orders')  ||seedOrders();
@@ -424,14 +437,23 @@ let __noMigDone=false;   // 舊單號轉新格式，一個 session 只跑一次
 function encK(x){return String(x).replace(/[.$#\[\]\/~]/g,c=>'~'+c.charCodeAt(0).toString(16).padStart(2,'0'));}
 function decK(x){return String(x).replace(/~([0-9a-f]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));}
 function aclKey(em){return String(em||'').replace(/\./g,',').replace(/@/g,',');}
-const SP=()=>'order/'+selStore;
+/* ---------- 多客戶（租戶）路徑 ----------
+   TENANT_ON=false 時，TP() 回傳空字串，所有路徑跟現在一模一樣，行為零改變。
+   資料搬完、核對過之後，只要把 TENANT_ON 改成 true，整套就切到新結構。
+   出事就把它改回 false，立刻退回舊資料。 */
+let TENANT='jianren';                 // 這家客戶的代號（之後由登入的帳號決定）
+const TENANT_ON=false;                // ← 資料還沒搬，先不要動這一行
+const TP=()=>TENANT_ON?('tenants/'+TENANT+'/'):'';
+const SP=()=>TP()+'order/'+selStore;  // 這間門市：訂單、退貨、購物車
+const SH=k=>TP()+'shared/'+k;         // 這家客戶共用：商品、廠商、菜價、LINE
+const ACLP=em=>TP()+'acl/'+aclKey(em);
 
 /* ---- 上傳（共用資料 + 本門市設定，不含訂單與退貨單，那兩個逐筆寫） ---- */
 function cloudPushShared(){ if(!CLOUD_ON||!window.CLOUD)return;
   const pm={}; products.forEach(p=>{pm[encK(p.id)]=p;});
   const wm={}; Object.keys(weekly).forEach(k=>{wm[encK(k)]=weekly[k];});
   const am={}; Object.keys(wkAlias).forEach(k=>{am[encK(k)]=wkAlias[k];});
-  CLOUD.set('shared/products',pm); CLOUD.set('shared/suppliers',suppliers); CLOUD.set('shared/weekly',wm); CLOUD.set('shared/wkalias',am);
+  CLOUD.set(SH('products'),pm); CLOUD.set(SH('suppliers'),suppliers); CLOUD.set(SH('weekly'),wm); CLOUD.set(SH('wkalias'),am);
 }
 function pickStoreMap(obj){const o={},pre=selStore+'|';
   Object.keys(obj||{}).forEach(k=>{if(k.indexOf(pre)===0)o[encK(k.slice(pre.length))]=obj[k];});return o;}
@@ -464,29 +486,29 @@ function cloudBind(){
     Object.keys(target).forEach(k=>{if(k.indexOf(pre)===0)delete target[k];});
     Object.keys(v||{}).forEach(k=>{target[pre+decK(k)]=v[k];});};
   // 商品資料版本比對：新版一上線，第一台開啟的裝置把核對過的資料推上雲端，其他人自動同步
-  CLOUD.read('shared/dataver').then(cv=>{
+  CLOUD.read(SH('dataver')).then(cv=>{
     if(cv!==DATA_VER){ const custom=products.filter(p=>/^x/.test(p.id));   // 上傳價目表時自己建的品項要保留
       products=seedProducts().concat(custom); suppliers=defaultSuppliers();
-      cloudPushShared(); CLOUD.set('shared/dataver',DATA_VER); render(); }
+      cloudPushShared(); CLOUD.set(SH('dataver'),DATA_VER); render(); }
   }).catch(()=>{});
-  cloudUnsub.push(CLOUD.watch('shared/products',v=>{
+  cloudUnsub.push(CLOUD.watch(SH('products'),v=>{
     if(v&&Object.keys(v).length)products=Object.keys(v).map(k=>v[k]);
     else if(products.length)cloudPushShared();
     if(migrateAltUnits()){persistLocal();cloudPushShared();}
     if(purgeOldAlias()){persistLocal();cloudPushShared();}
     if(dedupeProducts()){persistLocal();cloudPushShared();}
     render();}));
-  cloudUnsub.push(CLOUD.watch('shared/suppliers',v=>{
+  cloudUnsub.push(CLOUD.watch(SH('suppliers'),v=>{
     if(v&&Object.keys(v).length)suppliers=Object.keys(v).map(k=>v[k]);
     else if(suppliers.length)cloudPushShared();
     render();}));
-  cloudUnsub.push(CLOUD.watch('shared/weekly',v=>{
+  cloudUnsub.push(CLOUD.watch(SH('weekly'),v=>{
     if(v){weekly={};Object.keys(v).forEach(k=>{weekly[decK(k)]=v[k];});}
     else if(Object.keys(weekly).length)cloudPushShared();
     render();}));
-  cloudUnsub.push(CLOUD.watch('shared/line',v=>{ if(v&&v.url!==undefined){lineCfg={...lineCfg,...v};persistLocal();render();} }));
-  cloudUnsub.push(CLOUD.watch('shared/lineUsage',v=>{ if(v){lineUsage=v;persistLocal();render();} }));
-  cloudUnsub.push(CLOUD.watch('shared/wkalias',v=>{
+  cloudUnsub.push(CLOUD.watch(SH('line'),v=>{ if(v&&v.url!==undefined){lineCfg={...lineCfg,...v};persistLocal();render();} }));
+  cloudUnsub.push(CLOUD.watch(SH('lineUsage'),v=>{ if(v){lineUsage=v;persistLocal();render();} }));
+  cloudUnsub.push(CLOUD.watch(SH('wkalias'),v=>{
     if(v){wkAlias={};Object.keys(v).forEach(k=>{wkAlias[decK(k)]=v[k];});}
     else if(Object.keys(wkAlias).length)cloudPushShared();}));
   cloudUnsub.push(CLOUD.watch(SP()+'/orders',v=>{
@@ -514,7 +536,7 @@ window.__cloudReady=function(){
     if(!u){CLOUD_ON=false;CLOUD_ACL=null;gateStep='login';renderGate();
       document.getElementById('gate').classList.remove('hide');return;}
     gateStep='store';renderGate();
-    try{CLOUD_ACL=await CLOUD.read('acl/'+aclKey(u.email));}catch(e){CLOUD_ACL=null;}
+    try{CLOUD_ACL=await CLOUD.read(ACLP(u.email));}catch(e){CLOUD_ACL=null;}
     if(!CLOUD_ACL){gateStep='noacl';}
     renderGate();
   });
@@ -532,16 +554,36 @@ function renderGate(){
     <button class="btn" style="width:100%" onclick="location.reload()">重新整理</button>`;return;}
   if(gateStep==='login'){
     b.innerHTML=`<div style="text-align:center;font-size:38px;margin-bottom:6px">🛒</div>
-      <h2 style="text-align:center">健人餐廚 叫貨系統</h2>
-      <div class="muted" style="text-align:center;margin-bottom:20px;font-size:13.5px">登入一次就好，這台裝置會記住你</div>
+      <div style="text-align:center;font-weight:800;letter-spacing:6px;font-size:14px;color:var(--muted);margin-bottom:1px">2 A M　S H O P P I N G</div>
+      <h2 style="text-align:center;margin-top:2px">叫貨系統</h2>
+      <div class="muted" style="text-align:center;margin-bottom:20px;font-size:13.5px">用你的信箱登入，登入後再選今天在哪一間店</div>
       ${gateErrMsg?`<div class="gerr">${esc(gateErrMsg)}</div>`:''}
-      <div class="fld"><label>帳號</label><input id="gEmail" type="email" autocomplete="username" inputmode="email" placeholder="order@jianren.com" value="${esc(load('p_lastemail')||'')}"></div>
+      <div class="fld"><label>帳號</label><input id="gEmail" type="email" autocomplete="username" inputmode="email" placeholder="你的信箱" value="${esc(load('p_lastemail')||'')}"></div>
       <div class="fld"><label>密碼</label><input id="gPw" type="password" autocomplete="current-password" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter')doLogin()"></div>
-      <button class="btn" id="gBtn" style="width:100%;margin-top:4px" onclick="doLogin()">登入</button>`;
+      <button class="btn" id="gBtn" style="width:100%;margin-top:4px" onclick="doLogin()">登入</button>
+      <button class="btn grey mini" style="width:100%;margin-top:9px" onclick="gateErrMsg='';gateStep='forgot';renderGate()">忘記密碼 / 第一次設定密碼</button>
+      <div class="muted" style="text-align:center;margin-top:16px;font-size:12px;line-height:1.8;border-top:1px solid var(--line);padding-top:14px">
+        第一次使用？帳號由專人開通，<b>請提供你的信箱給我們</b>。<br>
+        <a href="${SUPPORT_LINE}" target="_blank" rel="noopener" style="display:inline-block;margin-top:9px;background:#06C755;color:#fff;font-weight:800;font-size:12.5px;padding:8px 18px;border-radius:99px;text-decoration:none">加入 ${SUPPORT_NAME}</a>
+        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-03a</div></div>`;
     setTimeout(()=>{const e=document.getElementById(load('p_lastemail')?'gPw':'gEmail');e&&e.focus();},120);return;}
+  if(gateStep==='forgot'){
+    b.innerHTML=`<h2 style="text-align:center">設定密碼</h2>
+      <div class="muted" style="text-align:center;margin-bottom:18px;font-size:13.5px">輸入你的信箱，我們寄一封信給你，<b>你自己在信裡設定密碼</b>。<br>第一次使用、忘記密碼都是走這裡。</div>
+      ${gateErrMsg?`<div class="gerr">${esc(gateErrMsg)}</div>`:''}
+      <div class="fld"><label>信箱</label><input id="gRstEmail" type="email" autocomplete="username" inputmode="email" placeholder="你的信箱" value="${esc(load('p_lastemail')||'')}" onkeydown="if(event.key==='Enter')doReset()"></div>
+      <button class="btn" id="gRstBtn" style="width:100%;margin-top:4px" onclick="doReset()">寄設定密碼的信給我</button>
+      <button class="btn grey mini" style="width:100%;margin-top:9px" onclick="gateErrMsg='';gateStep='login';renderGate()">‹ 回登入</button>`;
+    setTimeout(()=>{const e=document.getElementById('gRstEmail');e&&e.focus();},120);return;}
+  if(gateStep==='sent'){
+    b.innerHTML=`<div style="text-align:center;font-size:38px;margin-bottom:6px">📧</div>
+      <h2 style="text-align:center">信寄出去了</h2>
+      <div class="muted" style="text-align:center;margin-bottom:6px;font-size:13.5px">請到 <b>${esc(gateSentTo)}</b> 收信，點信裡的連結設定密碼。</div>
+      <div class="muted" style="text-align:center;margin-bottom:18px;font-size:12.5px">沒收到就看一下垃圾郵件匣。設定完再回來登入。</div>
+      <button class="btn" style="width:100%" onclick="gateErrMsg='';gateStep='login';renderGate()">回登入</button>`;return;}
   if(gateStep==='noacl'){
     b.innerHTML=`<h2>這個帳號還沒有權限</h2>
-      <div class="gerr">帳號 <b>${esc((CLOUD_USER&&CLOUD_USER.email)||'')}</b> 尚未設定可使用的門市。<br>請聯絡管理者在 Firebase 的 acl 加入這個帳號。</div>
+      <div class="gerr">帳號 <b>${esc((CLOUD_USER&&CLOUD_USER.email)||'')}</b> 還沒有設定可以使用的門市。<br>請聯絡貴公司的管理者，或與 2AM STUDIO 聯繫開通。</div>
       <button class="btn grey" style="width:100%" onclick="doLogout()">換一個帳號登入</button>`;return;}
   if(gateStep==='store'){
     const list=allowedStores(), last=load('p_selstore');
@@ -570,7 +612,7 @@ function renderGate(){
       <button class="btn" style="width:100%;margin-top:12px" onclick="enterApp()">確認，開始叫貨</button>
       <button class="btn grey mini" style="width:100%;margin-top:9px" onclick="doLogout()">登出</button>`;return;}
 }
-let gatePick='', gateExpand=false;
+let gatePick='', gateExpand=false, gateSentTo='';
 /* 連不到雲端時不要卡在「連線中…」 */
 setTimeout(()=>{ if(gateStep==='loading'){ gateStep='error';
   gateErrMsg='連不到雲端資料庫。可能是網路不通，或這台裝置擋掉了 Google 服務。請確認網路後重新整理。';
@@ -588,7 +630,17 @@ window.doLogin=async function(){
       : '登入失敗：'+c;
     gateStep='login';renderGate(); }
 };
-window.doLogout=async function(){ try{await CLOUD.logout();}catch(e){} gatePick='';gateErrMsg='';location.reload(); };
+window.doReset=async function(){
+  const el=document.getElementById('gRstEmail'), em=((el&&el.value)||'').trim();
+  if(!em){ gateErrMsg='請先填信箱'; renderGate(); return; }
+  const btn=document.getElementById('gRstBtn'); if(btn){btn.disabled=true;btn.textContent='寄送中…';}
+  try{ await CLOUD.sendReset(em); }
+  catch(e){ /* 就算這個信箱沒有帳號也照樣顯示已寄出，不然會變成拿來試探哪些信箱有註冊 */ }
+  gateSentTo=em; gateErrMsg=''; gateStep='sent'; renderGate();
+};
+window.doLogout=async function(){ try{await CLOUD.logout();}catch(e){} gatePick='';gateErrMsg='';
+  try{store.set('p_brand',JSON.stringify(''));}catch(e){}   // 登出就忘掉品牌，換人登入不會看到上一家的招牌
+  location.reload(); };
 window.enterApp=function(){
   if(!gatePick)return;
   gateExpand=false;
@@ -597,8 +649,160 @@ window.enterApp=function(){
   store.set('p_selstore',JSON.stringify(selStore));
   store.set('p_selstorename',JSON.stringify(curStoreName()));
   document.getElementById('gate').classList.add('hide');
+  { const mb=document.getElementById('migBtn'), em=(CLOUD_USER&&CLOUD_USER.email)||'';
+    if(mb)mb.style.display=(em.toLowerCase()===MIG_OWNER)?'block':'none'; }
+  applyTitle(true);        // 進來了，分頁換成客戶的品牌
   cloudBind(); render();
 };
+
+/* ============================================================
+   搬家工具　—　把資料複製到 tenants/<客戶>/ 底下
+   規則（8/25 那次的教訓，一條都不能少）：
+   1. 只從雲端直接讀，絕不從記憶體裡的陣列讀
+      （Firebase 的 watcher 會在迴圈跑到一半把陣列換掉）
+   2. 只新增，不刪除。舊路徑從頭到尾一個字都不動
+   3. 每一步都印出筆數
+   4. 重複按沒關係，結果一樣
+   5. 核對是獨立重算，不用系統自己的函式
+   ============================================================ */
+const MIG_BRANCHES=['shared','order','acl'];
+const MIG_OWNER='nilu0914bliss@gmail.com';   // 只有 Nina 看得到這個工具
+
+function migLog(html,cls){
+  const b=document.getElementById('migLog'); if(!b)return;
+  b.insertAdjacentHTML('beforeend','<div class="migline '+(cls||'')+'">'+html+'</div>');
+  b.scrollTop=b.scrollHeight;
+}
+function migCount(v){
+  if(v==null)return 0;
+  if(Array.isArray(v))return v.length;
+  if(typeof v==='object')return Object.keys(v).length;
+  return 1;
+}
+function migSize(v){ try{return JSON.stringify(v).length;}catch(e){return -1;} }
+
+window.openMig=function(){
+  let m=document.getElementById('migModal');
+  if(!m){
+    m=document.createElement('div'); m.id='migModal';
+    m.innerHTML=`<div class="migbox">
+      <div class="mighead"><b>🏗 搬家工具</b>
+        <button class="btn grey mini" onclick="document.getElementById('migModal').style.display='none'">關閉</button></div>
+      <div class="mignote">
+        目標位置：<code>tenants/${TENANT}/</code><br>
+        <b>只會新增，不會刪除任何東西。</b>現在的資料原封不動留在原位，系統也還是讀舊的。
+      </div>
+      <div class="migbtns">
+        <button class="btn" id="migB1" onclick="migCopy()">① 複製到新結構</button>
+        <button class="btn grey" id="migB2" onclick="migVerify()">② 核對新舊</button>
+        <button class="btn grey mini" onclick="document.getElementById('migLog').innerHTML=''">清空紀錄</button>
+      </div>
+      <div id="migLog"></div>
+    </div>`;
+    document.body.appendChild(m);
+    const st=document.createElement('style');
+    st.textContent=`#migModal{position:fixed;inset:0;background:rgba(61,61,61,.55);z-index:9999;display:flex;
+      align-items:center;justify-content:center;padding:16px}
+      .migbox{background:#fff;border-radius:18px;max-width:640px;width:100%;max-height:88vh;display:flex;
+        flex-direction:column;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+      .mighead{display:flex;align-items:center;gap:12px;font-size:16px;margin-bottom:10px}
+      .mighead b{flex:1}
+      .mignote{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:10px;
+        padding:11px 13px;font-size:12.5px;line-height:1.7;margin-bottom:12px}
+      .mignote code{background:#fff;padding:1px 6px;border-radius:5px;font-size:12px}
+      .migbtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+      #migLog{flex:1;overflow:auto;background:#F4F4F1;border-radius:12px;padding:12px 14px;
+        font-size:12.5px;line-height:1.85;font-family:ui-monospace,Menlo,monospace;min-height:180px}
+      .migline{white-space:pre-wrap;word-break:break-all}
+      .migline.ok{color:#1F4A36;font-weight:700}
+      .migline.bad{color:#8A3826;font-weight:700}
+      .migline.hd{color:#3D3D3D;font-weight:800;margin-top:8px;border-top:1px solid #E2E2DE;padding-top:8px}
+      .migline.dim{color:#7E7E78}`;
+    document.head.appendChild(st);
+  }
+  m.style.display='flex';
+};
+
+window.migCopy=async function(){
+  const b=document.getElementById('migB1'); if(b){b.disabled=true;b.textContent='複製中…';}
+  migLog('══ ① 複製到新結構　'+new Date().toLocaleString('zh-TW')+' ══','hd');
+  migLog('目標：tenants/'+TENANT+'/','dim');
+  try{
+    for(const br of MIG_BRANCHES){
+      migLog('讀取 '+br+' …','dim');
+      const v=await CLOUD.read(br);                       // ← 直接從雲端讀，不碰記憶體陣列
+      if(v==null){ migLog('  '+br+'：空的，跳過（不寫入）','dim'); continue; }
+      const n=migCount(v), sz=migSize(v);
+      migLog('  '+br+'：'+n+' 個項目，'+(sz/1024).toFixed(1)+' KB');
+      await CLOUD.set('tenants/'+TENANT+'/'+br, v);       // ← 只寫新路徑
+      migLog('  ✔ 已寫入 tenants/'+TENANT+'/'+br,'ok');
+    }
+    migLog('① 複製完成。舊資料完全沒有被動到。','ok');
+    migLog('接著按 ② 核對新舊。','dim');
+  }catch(e){
+    migLog('✘ 出錯了：'+(e&&e.message||e),'bad');
+    migLog('舊資料沒有被刪除，可以直接重按一次。','dim');
+  }
+  if(b){b.disabled=false;b.textContent='① 複製到新結構';}
+};
+
+window.migVerify=async function(){
+  const b=document.getElementById('migB2'); if(b){b.disabled=true;b.textContent='核對中…';}
+  migLog('══ ② 核對新舊　'+new Date().toLocaleString('zh-TW')+' ══','hd');
+  let allOk=true;
+  try{
+    for(const br of MIG_BRANCHES){
+      const a=await CLOUD.read(br);
+      const c=await CLOUD.read('tenants/'+TENANT+'/'+br);
+      const na=migCount(a), nc=migCount(c);
+      const sa=JSON.stringify(a===undefined?null:a), sc=JSON.stringify(c===undefined?null:c);
+      const same=(sa===sc);
+      if(!same)allOk=false;
+      migLog((same?'✔ ':'✘ ')+br+'　舊 '+na+' 項 / 新 '+nc+' 項　'
+             +(same?'內容完全相同':'內容不同！'), same?'ok':'bad');
+    }
+    /* 訂單另外獨立算一次金額，不用系統自己的函式 */
+    const oldO=await CLOUD.read('order');
+    const newO=await CLOUD.read('tenants/'+TENANT+'/order');
+    const tally=root=>{
+      const r={orders:0,items:0,amount:0,stores:0,byStatus:{}};
+      Object.keys(root||{}).forEach(st=>{
+        r.stores++;
+        const os=(root[st]||{}).orders||{};
+        Object.keys(os).forEach(k=>{
+          const o=os[k]; if(!o)return;
+          r.orders++;
+          r.byStatus[o.status||'(無)']=(r.byStatus[o.status||'(無)']||0)+1;
+          (o.items||[]).forEach(i=>{
+            r.items++;
+            if(i && i.price!=null && i.qty!=null) r.amount+=Number(i.price)*Number(i.qty);
+          });
+        });
+      });
+      return r;
+    };
+    const A=tally(oldO), C=tally(newO);
+    migLog('── 訂單獨立重算（不用系統的函式）──','hd');
+    const rows=[['門市數',A.stores,C.stores],['訂單張數',A.orders,C.orders],
+                ['品項筆數',A.items,C.items],
+                ['金額合計',A.amount.toFixed(2),C.amount.toFixed(2)]];
+    rows.forEach(([k,x,y])=>{
+      const ok=String(x)===String(y); if(!ok)allOk=false;
+      migLog((ok?'✔ ':'✘ ')+k+'　舊 '+x+' / 新 '+y, ok?'ok':'bad');
+    });
+    const ks=[...new Set([...Object.keys(A.byStatus),...Object.keys(B_safe(C.byStatus))])];
+    ks.forEach(k=>{
+      const x=A.byStatus[k]||0, y=C.byStatus[k]||0, ok=(x===y); if(!ok)allOk=false;
+      migLog((ok?'✔ ':'✘ ')+'　狀態「'+k+'」　舊 '+x+' / 新 '+y, ok?'ok':'bad');
+    });
+    migLog(allOk?'══ 全部對得起來 ✔　可以進行下一步 ══':'══ 有對不起來的項目 ✘　先不要往下走 ══', allOk?'ok':'bad');
+  }catch(e){
+    migLog('✘ 核對出錯：'+(e&&e.message||e),'bad');
+  }
+  if(b){b.disabled=false;b.textContent='② 核對新舊';}
+};
+function B_safe(o){return o||{};}
+
 window.switchStore=function(){ CLOUD_ON=false; gateStep='store'; gatePick=selStore; gateExpand=true;
   cloudUnsub.forEach(u=>{try{u();}catch(e){}}); cloudUnsub=[];
   orders=[]; returns=[];
@@ -758,7 +962,7 @@ function weeklyMissing(){const w=weekStartTue(isoAt(0));
     if(!n)return false;
     return !products.some(p=>p.supplier===s.name&&weeklyPrice(s.name,w,p.id)!=null);});}
 function weeklyBanner(){const miss=weeklyMissing();if(!miss.length)return '';
-  return `<div class="card" style="background:#FDF0DC;border-left:5px solid #EE9528;display:flex;align-items:center;gap:14px;flex-wrap:wrap;cursor:pointer" onclick="go('weekly')">
+  return `<div class="card" style="background:#F7EFD9;border-left:5px solid #7C6015;display:flex;align-items:center;gap:14px;flex-wrap:wrap;cursor:pointer" onclick="go('weekly')">
     <span style="font-size:24px">⚠️</span>
     <div style="flex:1;min-width:180px"><b>${miss.map(s=>esc(s.name)).join('、')} 的本週菜價還沒登錄</b>
       <div class="muted" style="font-size:12.5px;margin-top:2px">現在叫這家的貨會顯示「本週未報價」，貨款也算不進去。點我去登錄 ›</div></div></div>`;}
@@ -857,7 +1061,7 @@ function momChip(cur,prev,label,mode,big){
   const col=(!up&&!down)?'var(--muted)':(good?'var(--green)':'var(--red)');
   const arrow=up?'▲':down?'▼':'—';
   const cls=big?'':'pill';
-  const bg=big?'':(!up&&!down?'background:#F2EEE7;color:var(--muted)':good?'background:var(--green-soft);color:var(--green)':'background:var(--red-soft);color:var(--red)');
+  const bg=big?'':(!up&&!down?'background:#EDEDEA;color:var(--muted)':good?'background:var(--green-soft);color:var(--green)':'background:var(--red-soft);color:var(--red)');
   return `<span class="${cls}" style="${bg};${big?'color:'+ (mode==='up-good'&&big?'rgba(255,255,255,.95)':col)+';font-weight:700;font-size:12.5px':''}">${arrow} ${Math.abs(d).toFixed(1)}%</span>${big?`<span class="muted" style="font-size:11.5px"> vs ${label} $${fmt(prev)}</span>`:''}`;
 }
 // 佔比用「百分點」比較
@@ -904,7 +1108,7 @@ function vPayment(){
     <div style="padding-bottom:6px;margin-left:auto"><button class="btn line" onclick="go('returns')">↩︎ 退貨／折讓登錄</button></div></div></div>
   ${sec('月結','月結廠商（匯款 · 結算 26～次月25）','var(--blue-soft)')}
   ${sec('現金','現金廠商（付現 · 結算 1～月底）','var(--cash)')}
-  <div class="card" style="display:flex;justify-content:space-between;align-items:center;background:#fff8ec">
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;background:#FBF5E4">
     <b style="font-size:16px">本期應付貨款總額</b><b style="font-size:22px;color:var(--orange-d)">$${fmt(totalMaterial())}</b></div>
   ${revfld}
   <div style="text-align:right"><button class="btn" onclick="savePayment()">儲存</button></div>`;
@@ -931,7 +1135,7 @@ function vSupDetail(){
           </div></div>`).join('')}
         ${pend.map(o=>`<div style="font-size:11.5px;color:var(--orange-d);margin-top:6px">
           · ${o.no}　待收貨 $${fmt(orderTotal(o))}（未計入）
-          <div style="margin-left:11px;border-left:2px solid #F0DCC0;padding-left:9px;margin-top:2px">
+          <div style="margin-left:11px;border-left:2px solid #EBE0C4;padding-left:9px;margin-top:2px">
             ${(o.items||[]).map(i=>`<div>${esc(i.name)}　${i.qty} ${esc(i.unit)}${i.price==null?'　時價，收貨時計':`　× $${fmt2(i.price)} ＝ $${fmt(i.price*i.qty)}`}</div>`).join('')}
           </div></div>`).join('')}
         ${rts.map(v=>`<div style="font-size:11.5px;color:var(--red)"><span style="cursor:pointer" onclick="event.stopPropagation();openReturn('${v.id}')">↩︎ ${esc(v.kind)}單 ${esc(v.docNo||v.id)}　${(v.items||[]).map(i=>esc(i.name)+' ×'+i.qty).join('、')}　－$${fmt(retTotal(v))}</span>${v.photo?` <a style="cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();rViewPhoto('${v.id}')">📷 看退貨單</a>`:''}</div>`).join('')}</td>
@@ -949,7 +1153,7 @@ function vSupDetail(){
   <div class="card" style="padding:0;overflow:hidden">
     <table><thead><tr><th>日期 / 叫貨單</th><th class="right">叫貨單金額</th><th class="right">退貨／折讓</th><th class="right">手動調整</th><th class="right">當日合計</th></tr></thead>
     <tbody>${body}</tbody>
-    <tfoot><tr style="background:#FCFAF6"><td><b>本期合計</b></td><td class="right"><b>$${fmt(auto)}</b></td>
+    <tfoot><tr style="background:#F7F7F5"><td><b>本期合計</b></td><td class="right"><b>$${fmt(auto)}</b></td>
       <td class="right"><b style="color:var(--red)">${retSum?'－$'+fmt(retSum):'—'}</b></td><td class="right"><b>$${fmt(man)}</b></td>
       <td class="right"><b style="font-size:17px;color:var(--green)">$${fmt(auto+man-retSum)}</b></td></tr></tfoot></table></div>
   <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><button class="btn line" onclick="newReturn('${esc(s)}')">↩︎ 登錄這家的退貨／折讓單</button><button class="btn" onclick="saveSupDetail()">儲存每日明細</button></div>`;
@@ -1050,8 +1254,8 @@ function openReturnModal(){
   </div>
 
   <div style="background:var(--amber-soft);border-radius:14px;padding:14px 16px;margin-bottom:14px">
-    <label style="font-size:13px;color:#B9741C;font-weight:700;display:block;margin-bottom:8px">💰 這張單要扣多少（退款總額）</label>
-    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #EED9B8;border-radius:12px;padding:4px 14px">
+    <label style="font-size:13px;color:#7C6015;font-weight:700;display:block;margin-bottom:8px">💰 這張單要扣多少（退款總額）</label>
+    <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid #E8DCBC;border-radius:12px;padding:4px 14px">
       <span style="font-size:20px;font-weight:800;color:var(--muted)">$</span>
       <input id="rOver" type="number" step="any" inputmode="decimal" value="${rDraft.override===''||rDraft.override==null?'':rDraft.override}"
         placeholder="照退貨單上的總計填" style="font-size:21px;font-weight:800;padding:10px 0;background:transparent;border:none;flex:1"></div>
@@ -1120,7 +1324,7 @@ function vReturns(){
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
     <h1 style="margin-bottom:0">退貨／折讓</h1><button class="btn" onclick="newReturn()">＋ 登錄退貨單</button></div>
   <div class="muted" style="margin:8px 0 14px;line-height:1.7">拿到廠商開的<b>退貨單／折讓單</b>後補登在這裡。原本的叫貨單不用改，這張單會依<b>銷退日期</b>落到對應的結算區間，直接從該廠商應付貨款扣掉。</div>
-  <div class="card" style="background:#FAF7F2;box-shadow:none;border:1px solid var(--line);line-height:1.85">
+  <div class="card" style="background:#F4F4F1;box-shadow:none;border:1px solid var(--line);line-height:1.85">
     <div style="font-weight:700;margin-bottom:8px;font-size:14.5px">兩種單據差在「貨有沒有退回去」</div>
     <div style="font-size:13.5px"><span class="pill c">退貨單</span>　貨<b>實際退還</b>給廠商 —— 叫錯、送錯、多送、壞掉整批退。</div>
     <div style="font-size:13.5px;margin-top:6px"><span class="pill m">折讓單</span>　貨<b>留著</b>，只是錢少付 —— 品質差了點談好折價、數量短少（叫 10 斤只送 8 斤）、價格算錯要扣。</div>
@@ -1139,7 +1343,7 @@ function vReturns(){
 function vSuppliers(){
   const seg=(t,title,bg)=>{const list=suppliers.map((s,i)=>({...s,i})).filter(s=>s.type===t);
     return `<div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;background:${bg}">${title}（${list.length}）</div>
-    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#FDF0DC;color:#B9741C">未稅 ＋5%</span>`:''}${(s.basis&&s.basis!=='收貨日')?` <span class="pill" style="background:#EEF2F7;color:#2f4a6b">依${s.basis==='出貨日'?'預計到貨日':'下單日'}</span>`:''}${s.lineTo?` <span class="pill done">💬 LINE ${Number(s.lineSize)||1}人</span>`:''}</td>
+    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#F7EFD9;color:#7C6015">未稅 ＋5%</span>`:''}${(s.basis&&s.basis!=='收貨日')?` <span class="pill" style="background:#E7EAEF;color:#3A5470">依${s.basis==='出貨日'?'預計到貨日':'下單日'}</span>`:''}${s.lineTo?` <span class="pill done">💬 LINE ${Number(s.lineSize)||1}人</span>`:''}</td>
       <td class="right"><button class="btn grey mini" onclick="openSupplier(${s.i})">編輯</button></td></tr>`).join('')||'<tr><td class="muted" style="padding:16px">尚無廠商</td></tr>'}</tbody></table></div>`;};
   return `<div class="crumb">首頁 / 產品</div>
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin-bottom:0">廠商管理</h1>
@@ -1187,9 +1391,9 @@ function chkLineId(){const el=document.getElementById('sLineTo'),box=document.ge
   if(lineIdOk(c)){
     box.innerHTML=(c===raw)
       ?'<span style="color:var(--green);font-weight:700">✓ 格式正確</span>'
-      :'<span style="color:#B9741C;font-weight:700">⚠ 貼到多餘的字，儲存時會自動修成：</span><br><code style="word-break:break-all">'+esc(c)+'</code>';
+      :'<span style="color:#7C6015;font-weight:700">⚠ 貼到多餘的字，儲存時會自動修成：</span><br><code style="word-break:break-all">'+esc(c)+'</code>';
   }else{
-    box.innerHTML='<span style="color:#C0392B;font-weight:700">✗ 這不像群組 ID</span><span class="muted"> — 應該是 C 開頭再接 32 個英數字。請回 Apps Script 那頁只複製 <code>C…</code> 那一串。</span>';
+    box.innerHTML='<span style="color:#B04A32;font-weight:700">✗ 這不像群組 ID</span><span class="muted"> — 應該是 C 開頭再接 32 個英數字。請回 Apps Script 那頁只複製 <code>C…</code> 那一串。</span>';
   }}
 function saveSupplier(i){const name=document.getElementById('sName').value.trim();const type=document.getElementById('sType').value;
   const pricing=document.getElementById('sPricing').value;
@@ -1225,7 +1429,7 @@ function vWeekly(){
     return `<tr><td><b>${esc(p.name)}</b> ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}
       ${al.length?`<div class="muted" style="font-size:11px;margin-top:2px">價目表上叫：${al.map(esc).join('、')}</div>`:''}</td>
       <td class="right muted">${prev!=null?'$'+fmt(prev):'—'}</td>
-      <td class="right"><input style="width:120px;text-align:right;display:inline-block" type="number" value="${cur!=null?cur:''}" placeholder="輸入單價" data-wk="${p.id}">${cur===0?'<div style="font-size:10.5px;color:#C0392B">填 0 ＝ 本週無供應</div>':''}</td>
+      <td class="right"><input style="width:120px;text-align:right;display:inline-block" type="number" value="${cur!=null?cur:''}" placeholder="輸入單價" data-wk="${p.id}">${cur===0?'<div style="font-size:10.5px;color:#B04A32">填 0 ＝ 本週無供應</div>':''}</td>
       <td class="right muted">/ ${esc(p.unit)}</td>
       <td class="right">${diff==null?'':(diff>0?`<span style="color:var(--red)">▲ $${fmt(diff)}</span>`:diff<0?`<span style="color:var(--green)">▼ $${fmt(-diff)}</span>`:'<span class="muted">持平</span>')}</td>
       <td class="right"><button class="btn grey mini" onclick="openProduct('${p.id}')">編輯</button></td></tr>`;}).join('');
@@ -1272,14 +1476,14 @@ function showPriceChanges(sup,w){
   openModal(`<h3>📈 ${esc(shortSup(sup))}調價通知</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.7">
       <b style="color:var(--ink)">生效 ${mmdd(wk)}（三）～ ${mmdd(weekEndOf(wk))}</b>　·　跟上一週（${mmdd(c.pw)} 那週）比。</div>
-    ${n?`<div style="background:var(--amber-soft);color:#B9741C;border-radius:14px;padding:14px 16px;font-weight:800;font-size:15px;margin-bottom:14px">
+    ${n?`<div style="background:var(--amber-soft);color:#7C6015;border-radius:14px;padding:14px 16px;font-weight:800;font-size:15px;margin-bottom:14px">
       這週有 ${n} 項變動：${c.up.length} 項漲、${c.down.length} 項跌${c.newly.length?`、${c.newly.length} 項新報價`:''}${c.stopped.length?`、${c.stopped.length} 項停供`:''}</div>`
      :`<div style="background:var(--green-soft);color:var(--green);border-radius:14px;padding:14px 16px;font-weight:800;font-size:15px;margin-bottom:14px">這週價格跟上週完全一樣，沒有調價</div>`}
-    <div style="max-height:52vh;overflow:auto;background:#FAF7F2;padding:10px;border-radius:12px">
-      ${sec('🔺 漲價','#C0392B',c.up,'＋')}
-      ${sec('🔻 降價','#1B6B47',c.down,'－')}
-      ${sec('🆕 這週新報價','#EE9528',c.newly)}
-      ${sec('🚫 這週停供','#8E8981',c.stopped)}
+    <div style="max-height:52vh;overflow:auto;background:#F4F4F1;padding:10px;border-radius:12px">
+      ${sec('🔺 漲價','#B04A32',c.up,'＋')}
+      ${sec('🔻 降價','#2F6B4F',c.down,'－')}
+      ${sec('🆕 這週新報價','#7C6015',c.newly)}
+      ${sec('🚫 這週停供','#7E7E78',c.stopped)}
       ${c.same.length?`<div class="muted" style="font-size:12.5px;padding:8px 4px">另外 ${c.same.length} 項價格沒變。</div>`:''}
     </div>
     <div class="modact"><button class="btn" onclick="hideModal()">知道了</button></div>`,true);}
@@ -1292,7 +1496,7 @@ function openImport(){impMode='import';
     <div class="fld"><label>選擇檔案</label>
       <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.txt" onchange="onImportFile(this)" style="padding:9px"></div>
     <div class="muted" style="text-align:center;font-size:12px;margin:12px 0">— 或 直接貼上（從 Excel 複製整塊貼進來也行）—</div>
-    <div class="fld"><textarea id="impText" rows="5" placeholder="青江菜　45&#10;小黃瓜　60&#10;高麗菜　38" style="font-family:inherit;font-size:14px;padding:11px 14px;border:1.5px solid transparent;border-radius:12px;width:100%;background:#FAF7F2;resize:vertical"></textarea></div>
+    <div class="fld"><textarea id="impText" rows="5" placeholder="青江菜　45&#10;小黃瓜　60&#10;高麗菜　38" style="font-family:inherit;font-size:14px;padding:11px 14px;border:1.5px solid transparent;border-radius:12px;width:100%;background:#F4F4F1;resize:vertical"></textarea></div>
     <div class="modact"><button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="parsePasted()">讀取內容</button></div>`);}
 function splitRows(text){return text.split(/\r?\n/).filter(l=>l.trim()!=='').map(line=>{
   if(line.includes('\t'))return line.split('\t').map(s=>s.trim());
@@ -1423,9 +1627,9 @@ function impChange(i){const td=document.getElementById('impc_'+i);if(td)td.inner
 function impRow(i){const it=importRows[i],hit=it._pid?impList().find(p=>p.id===it._pid):null;
   const cur=it._sure?hit:null;
   const uc=(cur&&usableUnit(it.unit)&&!sameUnit(cur.unit,it.unit));
-  return `<tr><td data-l="報價單品名"><b>${esc(it.name)}</b>${it.memo?` <span class="spec">${esc(it.memo)}</span>`:''}${(!it._sure&&hit)?`<div style="font-size:10.5px;color:#B9741C">${it._dupe?'有兩筆都對到':'系統猜是'}「${esc(hit.name)}」，請確認對不對</div>`:''}</td>
+  return `<tr><td data-l="報價單品名"><b>${esc(it.name)}</b>${it.memo?` <span class="spec">${esc(it.memo)}</span>`:''}${(!it._sure&&hit)?`<div style="font-size:10.5px;color:#7C6015">${it._dupe?'有兩筆都對到':'系統猜是'}「${esc(hit.name)}」，請確認對不對</div>`:''}</td>
     <td class="center" data-l="單位">${it.unit?esc(it.unit):'<span class="muted">—</span>'}${uc?`<div style="font-size:10.5px;color:var(--amber)">原 ${esc(cur.unit)}</div>`:''}</td>
-    <td class="right" data-l="價格">${it.na?'<span class="pill" style="background:#FBE9E7;color:#C0392B">本週無供應</span>':'<b>$'+fmt(it.price)+'</b>'}</td>
+    <td class="right" data-l="價格">${it.na?'<span class="pill" style="background:#F8EAE6;color:#B04A32">本週無供應</span>':'<b>$'+fmt(it.price)+'</b>'}</td>
     <td data-l="對應到" id="impc_${i}">${cur?`<input type="hidden" data-impfix="${i}" value="${cur.id}"><b style="font-size:13px">${esc(cur.name)}</b> <button class="btn grey mini" onclick="impChange(${i})">改</button>`:impSelect(i)}</td></tr>`;}
 function impSect(icon,title,color,idx,open,hint){
   if(!idx.length)return '';
@@ -1467,20 +1671,20 @@ function verifyReport(res){
     <div style="font-weight:700;font-size:13.5px;margin-bottom:6px">${t}</div>${inner}</div>`;
   openModal(`<h3>核對結果</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px">${esc(wkSup)}　${mmdd(wk)}（三）～ ${mmdd(weekEndOf(wk))}　·　檔案共 ${items.length} 筆</div>
-    <div style="background:${bad?'#FBE9E7':'var(--green-soft)'};color:${bad?'#C0392B':'var(--green)'};border-radius:14px;padding:15px 17px;font-weight:800;font-size:16px;margin-bottom:14px">
+    <div style="background:${bad?'#F8EAE6':'var(--green-soft)'};color:${bad?'#B04A32':'var(--green)'};border-radius:14px;padding:15px 17px;font-weight:800;font-size:16px;margin-bottom:14px">
       ${bad?`⚠️ 有 ${bad} 項對不起來，請往下看`:`✅ 全部一致，${same.length} 項價格都跟檔案一樣`}</div>
-    <div style="max-height:50vh;overflow:auto;background:#FAF7F2;padding:10px;border-radius:12px">
-      ${diff.length?box(`❌ 價格不一樣（${diff.length}）`,'#C0392B',
+    <div style="max-height:50vh;overflow:auto;background:#F4F4F1;padding:10px;border-radius:12px">
+      ${diff.length?box(`❌ 價格不一樣（${diff.length}）`,'#B04A32',
         `<table style="font-size:12.5px;width:100%"><thead><tr><th>品項</th><th class="right">系統</th><th class="right">檔案</th></tr></thead><tbody>
          ${diff.map(d=>`<tr><td>${esc(d.it.name)}<div class="muted" style="font-size:11px">系統：${nm(d.pid)}</div></td>
-           <td class="right"><b>$${fmt(d.sys)}</b></td><td class="right"><b style="color:#C0392B">$${fmt(d.file)}</b></td></tr>`).join('')}</tbody></table>`):''}
-      ${noSys.length?box(`⚠️ 檔案有價、系統沒登錄（${noSys.length}）`,'#EE9528',
+           <td class="right"><b>$${fmt(d.sys)}</b></td><td class="right"><b style="color:#B04A32">$${fmt(d.file)}</b></td></tr>`).join('')}</tbody></table>`):''}
+      ${noSys.length?box(`⚠️ 檔案有價、系統沒登錄（${noSys.length}）`,'#7C6015',
         `<div class="muted" style="font-size:12.5px;line-height:1.9">${noSys.map(d=>esc(d.it.name)+' $'+fmt(d.it.na?0:d.it.price)).join('、')}<br><br>代表這幾筆上傳時沒進去，請重新上傳一次。</div>`):''}
-      ${stale.length?box(`⚠️ 系統有價、這份檔案沒這項（${stale.length}）`,'#EE9528',
+      ${stale.length?box(`⚠️ 系統有價、這份檔案沒這項（${stale.length}）`,'#7C6015',
         `<div class="muted" style="font-size:12.5px;line-height:1.9">${stale.map(d=>esc(d.p.name)+' $'+fmt(d.sys)).join('、')}<br><br>可能是上一週留下來的價格，確認一下是不是該清掉。</div>`):''}
-      ${noMatch.length?box(`○ 還沒對應到系統商品（${noMatch.length}）`,'#C9C2B6',
+      ${noMatch.length?box(`○ 還沒對應到系統商品（${noMatch.length}）`,'#B8B8B2',
         `<div class="muted" style="font-size:12.5px;line-height:1.9">${noMatch.map(it=>esc(it.name)).join('、')}<br><br>上傳時選過一次之後就會自動對上，這幾筆不影響已登錄的價格。</div>`):''}
-      ${same.length?box(`✅ 一致（${same.length}）`,'#1B6B47',
+      ${same.length?box(`✅ 一致（${same.length}）`,'#2F6B4F',
         `<div class="muted" style="font-size:12px;line-height:1.9">${same.map(it=>esc(it.name)).join('、')}</div>`):''}
     </div>
     ${bad?`<div class="muted" style="font-size:12px;margin-top:12px;line-height:1.7">廠商每週給的檔案就是最新的，<b style="color:var(--ink)">以檔案為準</b>。按下面的按鈕就會用這份檔案把這一週的價格整份換掉。</div>`:''}
@@ -1519,13 +1723,13 @@ function handleParsed(res){
     <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.7">
       共讀到 <b style="color:var(--ink)">${items.length}</b> 筆，套用到
       <b style="color:var(--ink)">${mmdd(wkWeek)}（三）～ ${mmdd(weekEndOf(wkWeek))}</b>。<br>
-      <b style="color:#B9741C">這一週的價格會整份換成這份檔案</b>——廠商每週給的就是最新的，以檔案為準。</div>
-    <div style="max-height:50vh;overflow:auto;background:#FAF7F2;padding:10px;border-radius:12px">
+      <b style="color:#7C6015">這一週的價格會整份換成這份檔案</b>——廠商每週給的就是最新的，以檔案為準。</div>
+    <div style="max-height:50vh;overflow:auto;background:#F4F4F1;padding:10px;border-radius:12px">
       ${impSect('✅','已對到現有商品','var(--green)',gOK,false,'價格會直接更新。對錯了的話按「改」重選。')}
-      ${impSect('⚠️','找不到對應的商品','#EE9528',gNew,true,'請幫這幾筆選一次；選過之後系統會記住，下週上傳就自動對上。')}
-      ${impSect('🚫','本週無供應（單價 0）','#C0392B',gNA,true,'這些品項這一週不能加入購物車，避免叫到沒有的貨。')}
+      ${impSect('⚠️','找不到對應的商品','#7C6015',gNew,true,'請幫這幾筆選一次；選過之後系統會記住，下週上傳就自動對上。')}
+      ${impSect('🚫','本週無供應（單價 0）','#B04A32',gNA,true,'這些品項這一週不能加入購物車，避免叫到沒有的貨。')}
       ${absent.length?`<details style="background:#fff;border-radius:12px;overflow:hidden">
-        <summary style="padding:11px 14px;font-weight:700;cursor:pointer;border-left:5px solid #C9C2B6">○ 這週價目表上沒出現（${absent.length}）</summary>
+        <summary style="padding:11px 14px;font-weight:700;cursor:pointer;border-left:5px solid #B8B8B2">○ 這週價目表上沒出現（${absent.length}）</summary>
         <div class="muted" style="padding:10px 14px;line-height:1.9;font-size:12.5px">${absent.map(p=>esc(p.name)).join('、')}<br><br>這些會顯示「本週未報價」，需要的話可以到本週菜價自己補價格。</div></details>`:''}
     </div>
     ${unitChg?`<label style="display:flex;gap:9px;align-items:center;margin-top:12px;font-size:13px;cursor:pointer">
@@ -1585,7 +1789,7 @@ function openProduct(id,presetSup){const p=id?products.find(x=>x.id===id):{name:
       <div style="display:flex;gap:8px">
         <label class="basisopt"><input type="radio" name="pBasis" value="含稅" ${supTax(p.supplier||(suppliers[0]||{}).name)==='含稅'?'checked':''} onchange="pTaxCalc()"> 含稅價</label>
         <label class="basisopt"><input type="radio" name="pBasis" value="未稅" ${supTax(p.supplier||(suppliers[0]||{}).name)==='未稅'?'checked':''} onchange="pTaxCalc()"> 未稅價</label></div>
-      <div id="pTaxHint" style="margin-top:9px;padding:11px 13px;background:#FAF7F2;border-radius:11px;font-size:12.5px;line-height:1.75"></div></div>
+      <div id="pTaxHint" style="margin-top:9px;padding:11px 13px;background:#F4F4F1;border-radius:11px;font-size:12.5px;line-height:1.75"></div></div>
     <div class="modact">${id?`<button class="btn grey mini" onclick="delProduct('${id}')" style="margin-right:auto">刪除</button>`:''}<button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveProduct('${id||''}')">儲存</button></div>`);pTaxCalc();}
 // 單價含稅／未稅即時換算：不管廠商怎麼報，都幫你算好，不用自己按計算機
 function pBasisNow(){const r=document.querySelector('input[name="pBasis"]:checked');return r?r.value:'含稅';}
@@ -1723,7 +1927,7 @@ function vProducts(){const sups=[...new Set(products.map(p=>p.supplier))],cats=[
 function priceCell(p){const m=supPricing(p.supplier);
   if(m==='隨貨')return `<span class="pill c">時價</span> <b>/ ${esc(p.unit)}</b><div class="muted" style="font-size:11px;margin-top:3px">收貨時計價</div>`;
   if(m==='週報'){const pr=priceFor(p,isoAt(0));
-    if(pr===0)return `<span class="pill" style="background:#FBE9E7;color:#C0392B">本週無供應</span> <b>/ ${esc(p.unit)}</b><div class="muted" style="font-size:11px;margin-top:3px">廠商這週沒有這項</div>`;
+    if(pr===0)return `<span class="pill" style="background:#F8EAE6;color:#B04A32">本週無供應</span> <b>/ ${esc(p.unit)}</b><div class="muted" style="font-size:11px;margin-top:3px">廠商這週沒有這項</div>`;
     return pr==null?`<span class="pill low">本週未報價</span> <b>/ ${esc(p.unit)}</b><div class="muted" style="font-size:11px;margin-top:3px">請先登錄本週菜價</div>`
       :`$${fmt(pr)} / ${esc(p.unit)}<div class="muted" style="font-size:11px;margin-top:3px">本週時價</div>`;}
   return `$${fmt2(p.price)} / ${esc(p.unit)}${supTax(p.supplier)==='未稅'?`<div class="muted" style="font-size:11px;margin-top:3px">未稅 · 含稅 $${fmt2(toIncl(p.price))}</div>`:''}`;}
@@ -1733,7 +1937,7 @@ function rowProduct(p){const q=cart[p.id]||1;
    <td class="right">${priceCell(p)}</td>
    <td class="center">${weekBlocked(p)?`<span class="muted" style="font-size:12.5px">本週無供應，不能叫貨</span>`
      :`<div style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center"><span class="stepper"><button onclick="stepCart('${p.id}',-1)">−</button><input id="q_${p.id}" value="${q}" onchange="setCart('${p.id}',this.value)"><button onclick="stepCart('${p.id}',1)">＋</button></span>${unitSwitch(p)}
-     <button class="btn mini" onclick="addCart('${p.id}')">加入 🛒</button></div>${altHint(p,q)}${weekNoPrice(p)?`<div style="font-size:11px;color:#B9741C;margin-top:4px">本週未報價 · 會以待計價送出</div>`:''}`}</td>
+     <button class="btn mini" onclick="addCart('${p.id}')">加入 🛒</button></div>${altHint(p,q)}${weekNoPrice(p)?`<div style="font-size:11px;color:#7C6015;margin-top:4px">本週未報價 · 會以待計價送出</div>`:''}`}</td>
    <td class="center"><button class="star ${isFav(p.id)?'':'off'}" title="${isFav(p.id)?'從最愛移除':'加入我的最愛'}" onclick="toggleFav('${p.id}')">${isFav(p.id)?'★':'☆'}</button></td></tr>`;}
 /* ====== 商品與價格（建置用） ====== */
 function vProdAdmin(){
@@ -1745,10 +1949,10 @@ function vProdAdmin(){
   ${names.length?names.map(n=>`<div class="card" style="padding:0;overflow:hidden">
     <div style="padding:12px 16px;font-weight:700;background:${supType(n)==='月結'?'var(--blue-soft)':'var(--cash)'};display:flex;justify-content:space-between">
       <span>${esc(n)} <span class="pill ${supType(n)==='月結'?'m':'c'}">${supType(n)}</span>
-        <span class="pill" style="${supTax(n)==='未稅'?'background:#FDF0DC;color:#B9741C':'background:#EEF3EF;color:#4A6B58'}">${supTax(n)==='未稅'?'未稅報價 ＋5%':'含稅報價'}</span></span><span class="muted" style="font-weight:400">${bySup[n].length} 項</span></div>
+        <span class="pill" style="${supTax(n)==='未稅'?'background:#F7EFD9;color:#7C6015':'background:#EAF1EC;color:#3F6B55'}">${supTax(n)==='未稅'?'未稅報價 ＋5%':'含稅報價'}</span></span><span class="muted" style="font-weight:400">${bySup[n].length} 項</span></div>
     <table><thead><tr><th>商品名稱</th><th>類別</th><th class="right">單價（${supTax(n)}）</th><th class="right">單位</th><th></th></tr></thead>
     <tbody>${bySup[n].map(p=>`<tr><td><b>${esc(p.name)}</b> ${p.spec?`<span class="spec">${esc(p.spec)}</span>`:''}</td><td class="muted">${esc(p.cat)}</td>
-      <td class="right"><span class="mlab">單價</span><b>$${fmt2(p.price)}</b>${p.taxfree?' <span class="pill" style="background:#E7F0EA;color:#1B6B47">免稅</span>':''}
+      <td class="right"><span class="mlab">單價</span><b>$${fmt2(p.price)}</b>${p.taxfree?' <span class="pill" style="background:#E3EDE7;color:#2F6B4F">免稅</span>':''}
         <div class="muted" style="font-size:11px">${supTax(n)==='未稅'?'未稅 · 含稅 $'+fmt2(toIncl(p.price)):'含稅 · 未稅 $'+fmt2(toExcl(p.price))}</div></td><td class="right muted"><span class="mlab">單位</span>/ ${esc(p.unit)}</td>
       <td class="right"><button class="btn grey mini" onclick="openProduct('${p.id}')">編輯</button></td></tr>`).join('')}</tbody></table></div>`).join('')
   :`<div class="card"><div class="empty">還沒有商品，點右上角「＋ 新增商品」開始建置。</div></div>`}`;
@@ -1772,8 +1976,8 @@ function vOrdering(){const items=Object.keys(cart).filter(id=>cart[id]>0).map(id
     <thead><tr><th>產品</th><th>供應商</th><th class="center">數量</th><th class="right">單價</th><th class="right">小計</th><th></th></tr></thead>
     <tbody>${items.map(i=>`<tr><td>${esc(i.name)}</td><td>${esc(i.supplier)}</td>
       <td class="center"><div style="display:inline-flex;gap:8px;align-items:center"><span class="stepper"><button onclick="stepCart('${i.id}',-1)">−</button><input value="${i.qty}" onchange="setCart('${i.id}',this.value)"><button onclick="stepCart('${i.id}',1)">＋</button></span><b style="font-size:13.5px;color:var(--muted)">${esc(i._u)}</b></div>${i._f>1?`<div class="muted" style="font-size:11px;margin-top:3px">＝ ${fmt(i.qty*i._f)} ${esc(i.unit)}</div>`:''}</td>
-      <td class="right">${weekBlocked(i)?`<span class="pill" style="background:#FBE9E7;color:#C0392B">本週無供應</span>`:weekNoPrice(i)?`<span class="pill" style="background:#FDF0DC;color:#B9741C">本週未報價</span> <b>/ ${esc(i._u)}</b><div class="muted" style="font-size:11px;margin-top:3px">收貨時填單價</div>`:i._lp==null?`<span class="pill c">時價</span> <b>/ ${esc(i._u)}</b>`:'$'+fmt(i._lp)+' / '+esc(i._u)}</td><td class="right">${i._lp==null?'<span class="muted">待計價</span>':'<b>$'+fmt(i._lp*i.qty)+'</b>'}</td><td class="right"><button class="btn grey mini" onclick="setCart('${i.id}',0)">移除</button></td></tr>`).join('')}</tbody></table></div>
-  <div class="sum">${items.some(i=>supTax(i.supplier)==='未稅')?`<span class="pill" style="background:#FDF0DC;color:#B9741C">含未稅報價廠商，結算時另加 5% 營業稅</span>`:''}${anyTBD?`<span class="pill c">含時價品項，金額於收貨時確定</span>`:''}<span class="muted">共 ${items.length} 項</span><span>合計 <b>$${fmt(total)}</b>${anyTBD?'<span class="muted" style="font-size:12px"> +時價</span>':''}</span>${items.some(i=>weekNoPrice(i))?`<span class="pill" style="background:#FDF0DC;color:#B9741C">有本週未報價的品項，收貨時要填實際單價</span>`:''}${items.some(i=>weekBlocked(i))?`<span class="pill" style="background:#FBE9E7;color:#C0392B">有本週無供應的品項，請先移除</span>`:''}<button class="btn green" id="submitBtn" ${items.some(i=>weekBlocked(i))?'disabled style="opacity:.45"':''} onclick="submitOrder()">送出訂單</button></div>`
+      <td class="right">${weekBlocked(i)?`<span class="pill" style="background:#F8EAE6;color:#B04A32">本週無供應</span>`:weekNoPrice(i)?`<span class="pill" style="background:#F7EFD9;color:#7C6015">本週未報價</span> <b>/ ${esc(i._u)}</b><div class="muted" style="font-size:11px;margin-top:3px">收貨時填單價</div>`:i._lp==null?`<span class="pill c">時價</span> <b>/ ${esc(i._u)}</b>`:'$'+fmt(i._lp)+' / '+esc(i._u)}</td><td class="right">${i._lp==null?'<span class="muted">待計價</span>':'<b>$'+fmt(i._lp*i.qty)+'</b>'}</td><td class="right"><button class="btn grey mini" onclick="setCart('${i.id}',0)">移除</button></td></tr>`).join('')}</tbody></table></div>
+  <div class="sum">${items.some(i=>supTax(i.supplier)==='未稅')?`<span class="pill" style="background:#F7EFD9;color:#7C6015">含未稅報價廠商，結算時另加 5% 營業稅</span>`:''}${anyTBD?`<span class="pill c">含時價品項，金額於收貨時確定</span>`:''}<span class="muted">共 ${items.length} 項</span><span>合計 <b>$${fmt(total)}</b>${anyTBD?'<span class="muted" style="font-size:12px"> +時價</span>':''}</span>${items.some(i=>weekNoPrice(i))?`<span class="pill" style="background:#F7EFD9;color:#7C6015">有本週未報價的品項，收貨時要填實際單價</span>`:''}${items.some(i=>weekBlocked(i))?`<span class="pill" style="background:#F8EAE6;color:#B04A32">有本週無供應的品項，請先移除</span>`:''}<button class="btn green" id="submitBtn" ${items.some(i=>weekBlocked(i))?'disabled style="opacity:.45"':''} onclick="submitOrder()">送出訂單</button></div>`
   :`<div class="card"><div class="empty">🛒 購物車是空的。<br><span style="font-size:13px">先到「我的最愛」或「我要叫貨」把要叫的貨加進購物車，再點右上角 🛒 回到這裡送出。</span>
     <div style="margin-top:18px;display:flex;gap:9px;justify-content:center">
       <button class="btn" onclick="go('fav')">⭐ 我的最愛</button>
@@ -1820,7 +2024,7 @@ function vOrders(){
 function openEditOrder(no){const o=orders.find(x=>x.no===no);if(!o)return;
   openModal(`<h3>修改訂單 ${o.no}</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px">${esc(o.supplier)}　·　下單 ${mmdd(o.date)}　·　${o.status}</div>
-    <div style="max-height:44vh;overflow:auto;background:#FAF7F2;border-radius:12px;padding:6px 12px">
+    <div style="max-height:44vh;overflow:auto;background:#F4F4F1;border-radius:12px;padding:6px 12px">
     <table style="font-size:13px"><tbody>${o.items.map((i,idx)=>`<tr>
       <td>${esc(i.name)}<div class="muted" style="font-size:11.5px">${i.price==null?'時價待計':'$'+fmt(i.price)+' / '+esc(i.unit)}</div></td>
       <td class="right" style="white-space:nowrap"><input type="number" min="0" style="width:82px;text-align:right;display:inline-block" value="${i.qty}" data-eq="${idx}"> ${esc(i.unit)}</td>
@@ -1924,14 +2128,14 @@ async function afterSubmit(nos){
     rows.push({o,st,msg});
   }
   const okN=rows.filter(r=>r.st==='ok').length;
-  const tag={ok:'<span class="pill done">✓ 已通知</span>',fail:'<span class="pill" style="background:#FBE9E7;color:#C0392B">發送失敗</span>',
-    nogroup:'<span class="pill wait">沒有群組</span>',badid:'<span class="pill" style="background:#FBE9E7;color:#C0392B">群組 ID 有問題</span>',quota:'<span class="pill" style="background:#FBE9E7;color:#C0392B">額度用完</span>',
+  const tag={ok:'<span class="pill done">✓ 已通知</span>',fail:'<span class="pill" style="background:#F8EAE6;color:#B04A32">發送失敗</span>',
+    nogroup:'<span class="pill wait">沒有群組</span>',badid:'<span class="pill" style="background:#F8EAE6;color:#B04A32">群組 ID 有問題</span>',quota:'<span class="pill" style="background:#F8EAE6;color:#B04A32">額度用完</span>',
     off:'<span class="pill wait">未啟用自動</span>'};
   openModal(`<h3>訂單送出了 ✓</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">共 ${list.length} 張叫貨單${auto?`，已自動通知 <b style="color:var(--green)">${okN}</b> 家`:''}。${auto?`<br>本月已用 ${lineUsed()} / ${lineQuota()} 則。`:'<br>還沒設定自動通知，可以先手動傳。'}</div>
     ${rows.map(({o,st,msg})=>`<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--line)">
       <div style="flex:1 1 170px;min-width:0"><b>${esc(o.supplier)}</b> ${tag[st]}
-        <div class="muted" style="font-size:12px">${o.no}　${(o.items||[]).length} 項　到貨 ${mmdd(o.deliveryDate)}${msg?`　·　<span style="color:#C0392B">${esc(msg)}</span>`:''}</div></div>
+        <div class="muted" style="font-size:12px">${o.no}　${(o.items||[]).length} 項　到貨 ${mmdd(o.deliveryDate)}${msg?`　·　<span style="color:#B04A32">${esc(msg)}</span>`:''}</div></div>
       ${st==='ok'?'':`<button class="btn line mini" onclick="openLineShare('${o.no}')">📤 手動傳</button>`}</div>`).join('')}
     <div class="modact">${auto?'':`<button class="btn grey mini" onclick="openLineSetup()" style="margin-right:auto">設定自動通知</button>`}<button class="btn" onclick="hideModal()">關閉</button></div>`,true);}
 /* ===== LINE 自動通知 =====
@@ -1954,7 +2158,7 @@ function migrateLineIds(){let n=0;suppliers.forEach(s=>{if(!s.lineTo)return;
   const c=cleanLineId(s.lineTo);if(c&&c!==s.lineTo){s.lineTo=c;n++;}});return n;}
 function lineTargetOf(sup){const x=suppliers.find(y=>y.name===sup);return cleanLineId(x&&x.lineTo);}
 function lineSizeOf(sup){const x=suppliers.find(y=>y.name===sup);return Math.max(1,Number(x&&x.lineSize)||1);}
-function cloudPushLine(){ if(CLOUD_ON&&window.CLOUD){CLOUD.set('shared/line',lineCfg);CLOUD.set('shared/lineUsage',lineUsage);} }
+function cloudPushLine(){ if(CLOUD_ON&&window.CLOUD){CLOUD.set(SH('line'),lineCfg);CLOUD.set(SH('lineUsage'),lineUsage);} }
 function bumpUsage(n){const m=lineMonth();lineUsage[m]=lineUsed()+n;persistLocal();cloudPushLine();}
 /* Content-Type 用預設的 text/plain，才不會觸發 preflight（Apps Script 不處理 OPTIONS） */
 async function lineSend(to,text){
@@ -2000,7 +2204,7 @@ function orderMsg(o){
       if(Number(i.qty)!==1)q+=`　＝$${fmt(i.price*i.qty)}`;
     }
     return `${lineName(i.name)}\n${q}`;});
-  let t=`健人餐廚　${o.storeName||curStoreName()}\n${lineDate(o.deliveryDate)}到貨　${o.no}\n\n`+lines.join('\n');
+  let t=`${BRAND}　${o.storeName||curStoreName()}\n${lineDate(o.deliveryDate)}到貨　${o.no}\n\n`+lines.join('\n');
   let tail=false;
   if(allPriced){
     t+=`\n\n合計 $${fmt(orderTotal(o))}`;
@@ -2025,20 +2229,20 @@ function lineGroupCheck(){
     <div style="font-weight:800;font-size:13.5px;margin-bottom:8px">群組 ID 體檢（${rows.length} 家）</div>
     ${rows.map(s=>{const id=cleanLineId(s.lineTo),ok=lineIdOk(id);
       return `<div style="display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)">
-        <span style="flex:0 0 auto;font-weight:800;color:${ok?'var(--green)':'#C0392B'}">${ok?'✓':'✗'}</span>
+        <span style="flex:0 0 auto;font-weight:800;color:${ok?'var(--green)':'#B04A32'}">${ok?'✓':'✗'}</span>
         <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(s.name)}</b>
           <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${Number(s.lineSize)||1} 人`
             :`存的是「${esc(String(s.lineTo).slice(0,40))}」共 ${String(s.lineTo).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
       </div>`;}).join('')}
-    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-08-25d</div></div>`;}
+    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-03a</div></div>`;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
   openModal(`<h3>LINE 自動通知設定</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">
       送出叫貨單時自動發到該廠商的 LINE 群組。<b style="color:var(--ink)">權杖不會存在這裡</b>——它在妳自己的 Google Apps Script 裡，這邊只存中繼網址。</div>
-    <div style="background:${pct>=90?'#FBE9E7':pct>=70?'var(--amber-soft)':'var(--green-soft)'};border-radius:14px;padding:14px 16px;margin-bottom:16px">
-      <div style="font-weight:800;font-size:15px;color:${pct>=90?'#C0392B':pct>=70?'#B9741C':'var(--green)'}">本月已用 ${used} / ${q} 則</div>
-      <div style="height:8px;background:#fff;border-radius:99px;margin-top:9px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=90?'#C0392B':pct>=70?'#EE9528':'#1B6B47'}"></div></div>
+    <div style="background:${pct>=90?'#F8EAE6':pct>=70?'var(--amber-soft)':'var(--green-soft)'};border-radius:14px;padding:14px 16px;margin-bottom:16px">
+      <div style="font-weight:800;font-size:15px;color:${pct>=90?'#B04A32':pct>=70?'#7C6015':'var(--green)'}">本月已用 ${used} / ${q} 則</div>
+      <div style="height:8px;background:#fff;border-radius:99px;margin-top:9px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=90?'#B04A32':pct>=70?'#7C6015':'#2F6B4F'}"></div></div>
       <div class="muted" style="font-size:11.5px;margin-top:8px">LINE 免費方案每月 200 則，算法是「發送次數 × 群裡人數」。<b style="color:var(--ink)">用完不會自動扣款</b>，只是發不出去，可以改用手動傳。</div>
     </div>
     <div class="fld"><label>Apps Script 中繼網址</label>
@@ -2071,7 +2275,7 @@ async function lineTest(){
     const g=j.groups||[];
     openModal(`<h3>連線成功 ✓</h3>
       <div class="muted" style="font-size:13px;margin-bottom:12px">中繼有回應，通關密語正確。目前記錄到 ${g.length} 個群組：</div>
-      ${g.length?g.map(x=>`<div style="padding:11px 13px;background:#FAF7F2;border-radius:11px;margin-bottom:9px">
+      ${g.length?g.map(x=>`<div style="padding:11px 13px;background:#F4F4F1;border-radius:11px;margin-bottom:9px">
         <b style="font-size:13.5px">${esc(x.name||'（讀不到名稱）')}</b>
         <div style="font-size:12px;word-break:break-all;color:var(--muted);margin-top:3px">${esc(x.id)}</div></div>`).join('')
         :'<div class="muted" style="font-size:12.5px">還沒有群組。把官方帳號拉進叫貨群，在群裡打一句話，再按一次測試。</div>'}
@@ -2088,7 +2292,7 @@ function openLineShare(no){const o=orders.find(x=>x.no===no);if(!o)return;
   openModal(`<h3>傳給 ${esc(o.supplier)}</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:12px;line-height:1.7">按「用 LINE 傳送」會打開 LINE 讓妳選要傳到哪個群組或聊天室，內容已經幫妳打好了。<br>
       <b style="color:var(--ink)">這是用妳自己的 LINE 傳，完全免費、沒有則數限制。</b></div>
-    <textarea id="lnMsg" rows="12" style="width:100%;font-family:inherit;font-size:13.5px;line-height:1.9;padding:13px;border:1.5px solid var(--line);border-radius:12px;background:#FAF7F2;resize:vertical">${esc(t)}</textarea>
+    <textarea id="lnMsg" rows="12" style="width:100%;font-family:inherit;font-size:13.5px;line-height:1.9;padding:13px;border:1.5px solid var(--line);border-radius:12px;background:#F4F4F1;resize:vertical">${esc(t)}</textarea>
     <div class="muted" style="font-size:11.5px;margin-top:7px">可以直接在上面改字再傳。</div>
     <div class="modact"><button class="btn grey" onclick="copyLineMsg()">複製文字</button><button class="btn" onclick="doLineShare()">用 LINE 傳送</button></div>`,true);}
 function doLineShare(){const t=(document.getElementById('lnMsg')||{}).value||'';
@@ -2210,7 +2414,7 @@ setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, get, set, remove, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
   import { getAuth, signInAnonymously, signInWithEmailAndPassword, onAuthStateChanged, signOut,
-           setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+           setPersistence, browserLocalPersistence, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
   /* ---- 打卡系統（只讀營業額與門市，完全不寫入） ---- */
   const punchCfg={apiKey:"AIzaSyDp3j6gxWptUPSUEohR27IfkCjzzBk1Gl4",authDomain:"punch-83688.firebaseapp.com",databaseURL:"https://punch-83688-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"punch-83688",storageBucket:"punch-83688.firebasestorage.app",messagingSenderId:"68649051357",appId:"1:68649051357:web:d4e0c4913e026091052734"};
@@ -2225,6 +2429,9 @@ setTimeout(()=>{if(fb.status==='loading')window.__failFB();},6000);
     async login(email,pw){ await setPersistence(oAuth,browserLocalPersistence);
       const c=await signInWithEmailAndPassword(oAuth,email,pw); return c.user; },
     logout(){ return signOut(oAuth); },
+    /* 寄一封信讓對方自己設密碼。新開的帳號第一次設定、忘記密碼，都是走這條。
+       密碼從頭到尾只有他自己知道，Nina 和系統都看不到。 */
+    sendReset(email){ return sendPasswordResetEmail(oAuth,email); },
     onAuth(cb){ onAuthStateChanged(oAuth,cb); },
     user(){ return oAuth.currentUser; },
     watch(path,cb){ return onValue(ref(oDb,path),snap=>cb(snap.val()),err=>{console.warn('watch fail',path,err);cb(null,err);}); },
