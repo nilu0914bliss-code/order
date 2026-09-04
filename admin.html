@@ -216,7 +216,7 @@ window.dispatchEvent(new Event('db-ready'));
 </script>
 
 <script>
-const VER='2026-09-04b';
+const VER='2026-09-04c';
 const EK = e => String(e||'').replace(/\./g,',').replace(/@/g,',');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('zh-TW');
@@ -661,19 +661,84 @@ window.sendReset=async function(key,btn){
 function storeTable(ids){
   const T=TENANTS[CUR], m=T.meta||{};
   return `<div class="scroll"><table>
-    <tr><th>門市</th><th>代號</th><th class="r">訂單</th><th>最後叫貨</th><th>專屬帳號</th><th>狀態</th></tr>
+    <tr><th>門市</th><th>代號</th><th class="r">訂單</th><th>最後叫貨</th><th>專屬帳號</th><th>狀態</th><th class="r">管理</th></tr>
     ${ids.map(sid=>{ const s=T.stores[sid], sm=(m.stores||{})[sid]||{};
       const own=Object.keys(T.acl).filter(k=>((T.acl[k]||{}).stores||{})[sid]===true);
-      return `<tr>
+      const off=sm.archived===true;
+      return `<tr${off?' style="opacity:.55"':''}>
         <td><b>${esc(s.name)}</b></td>
         <td class="note">${esc(sm.code||sid.slice(0,8)+'…')}</td>
         <td class="r">${s.orders}</td>
         <td>${s.last?esc(s.last):'<span class="note">還沒叫過</span>'}</td>
         <td class="note">${own.length?own.map(k=>esc(keyToEmail(k)||k)).join('<br>'):'用共用帳號'}</td>
-        <td>${s.orders?'<span class="pill p-ok">使用中</span>':'<span class="pill p-bad">未啟用</span>'}</td>
-      </tr>`;}).join('')}
+        <td>${off?'<span class="pill p-off">已停用</span>':(s.orders?'<span class="pill p-ok">使用中</span>':'<span class="pill p-bad">未啟用</span>')}</td>
+        <td class="r" style="white-space:nowrap">
+          <button class="btn g mini" onclick="toggleArchive('${esc(sid)}')">${off?'啟用':'停用'}</button>
+          <button class="btn g mini" onclick="askDelete('${esc(sid)}')">刪除</button>
+        </td>
+      </tr>
+      <tr id="del_${esc(sid)}" class="hide"><td colspan="7" style="background:var(--red-soft);border-radius:0">
+        <div style="padding:6px 2px">
+          <b style="color:#8A3826">永久刪除「${esc(s.name)}」</b>
+          <div class="note" style="margin:6px 0 10px">
+            會一起消失：<b>${s.orders} 張訂單</b>、${s.returns} 筆退貨、我的最愛、上次叫貨量、單號序號。<b>刪掉回不來。</b><br>
+            按下面的按鈕會先把這間店的完整資料下載成 JSON 到妳電腦，再要求妳打出門市名稱確認。</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="btn g mini" onclick="downloadStore('${esc(sid)}')">① 下載備份</button>
+            <input id="dc_${esc(sid)}" placeholder="② 打出門市名稱：${esc(s.name)}" style="max-width:280px;font-size:13px;padding:7px 11px">
+            <button class="btn mini" style="background:#B04A32" onclick="doDelete('${esc(sid)}',this)">③ 永久刪除</button>
+            <button class="btn g mini" onclick="askDelete('${esc(sid)}')">取消</button>
+          </div>
+        </div></td></tr>`;}).join('')}
   </table></div>`;
 }
+window.toggleArchive=async function(sid){
+  const m=TENANTS[CUR].meta||{}, cur=((m.stores||{})[sid]||{}).archived===true;
+  try{
+    await DB.update('tenants/'+CUR+'/meta/stores/'+sid, { archived: cur?null:true });
+    await loadAll(); renderDetail(); toast(cur?'已啟用':'已停用（叫貨的門市選單不會再出現）');
+  }catch(e){ toast('改不了：'+(e.message||e)); }
+};
+window.askDelete=function(sid){ const r=document.getElementById('del_'+sid); if(r)r.classList.toggle('hide'); };
+
+window.downloadStore=async function(sid){
+  try{
+    const node=await DB.read('tenants/'+CUR+'/order/'+sid);
+    const meta=await DB.read('tenants/'+CUR+'/meta/stores/'+sid);
+    const txt=JSON.stringify({app:'2AM SHOPPING',kind:'單一門市完整備份（刪除前）',
+      exportedAt:new Date().toISOString(),tenant:CUR,storeId:sid,storeMeta:meta,data:node},null,1);
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));
+    a.download=((meta&&meta.name)||sid)+'_刪除前備份_'+today()+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('備份已開始下載（'+Math.round(txt.length/1024)+' KB）');
+  }catch(e){ toast('備份失敗，先不要刪：'+(e.message||e)); }
+};
+
+window.doDelete=async function(sid,btn){
+  const T=TENANTS[CUR], s=T.stores[sid], want=(s&&s.name)||'';
+  const got=((document.getElementById('dc_'+sid)||{}).value||'').trim();
+  if(got!==want){ toast('請完整打出門市名稱：'+want); return; }
+  if(btn){btn.disabled=true;btn.textContent='刪除中…';}
+  const brand=((T.meta.stores||{})[sid]||{}).brand;   // ← 一定要在刪除前先記下來
+  try{
+    await DB.set('tenants/'+CUR+'/order/'+sid, null);        // 訂單、退貨、序號
+    await DB.set('tenants/'+CUR+'/meta/stores/'+sid, null);  // 門市登記
+    // 這個帳號只服務這間店的話，權限也一起收回
+    for(const k of Object.keys(T.acl||{})){
+      const a=T.acl[k]||{}, st=a.stores||{};
+      if(st[sid]===true && Object.keys(st).length===1) await DB.set('tenants/'+CUR+'/acl/'+k, null);
+      else if(st[sid]===true) await DB.set('tenants/'+CUR+'/acl/'+k+'/stores/'+sid, null);
+    }
+    // 品牌底下沒有門市了就一起收掉
+    await loadAll();
+    if(brand){ const left=Object.values(TENANTS[CUR].meta.stores||{}).filter(x=>x.brand===brand).length;
+      if(!left){ await DB.set('tenants/'+CUR+'/meta/brands/'+brand, null); await loadAll(); } }
+    renderDetail(); toast('已刪除「'+want+'」');
+  }catch(e){ toast('刪不掉：'+((e&&e.code)||e.message||e)+'（規則可能還沒更新到 v4）'); }
+  if(btn){btn.disabled=false;btn.textContent='③ 永久刪除';}
+};
+
 window.toggleForm=function(id){ const el=document.getElementById(id); if(el)el.classList.toggle('hide'); };
 
 window.addBrand=async function(){
