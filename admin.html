@@ -1,6 +1,7 @@
 <!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA2NCA2NCc+PHJlY3Qgd2lkdGg9JzY0JyBoZWlnaHQ9JzY0JyByeD0nMTQnIGZpbGw9JyMzRDNEM0QnLz48cmVjdCB4PScxNicgeT0nMTknIHdpZHRoPSczMicgaGVpZ2h0PSc1JyByeD0nMi41JyBmaWxsPScjRjJGMkYwJy8+PHJlY3QgeD0nMTYnIHk9JzMwJyB3aWR0aD0nMjQnIGhlaWdodD0nNScgcng9JzIuNScgZmlsbD0nI0YyRjJGMCcgb3BhY2l0eT0nLjc1Jy8+PHJlY3QgeD0nMTYnIHk9JzQxJyB3aWR0aD0nMTgnIGhlaWdodD0nNScgcng9JzIuNScgZmlsbD0nI0RGQUVCQicvPjwvc3ZnPg==">
 <title>2AM SHOPPING　管理後台</title>
 <style>
 :root{
@@ -180,7 +181,8 @@ input,select,textarea{width:100%;padding:10px 13px;border:1px solid var(--line);
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, get, set, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut,
-         setPersistence, browserLocalPersistence, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+         setPersistence, browserLocalPersistence, sendPasswordResetEmail,
+         createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const cfg={apiKey:"AIzaSyA97V0-UtVt6KLHkjZSlKNtDZzcyFUeuRo",authDomain:"jianren-order.firebaseapp.com",databaseURL:"https://jianren-order-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"jianren-order",storageBucket:"jianren-order.firebasestorage.app",messagingSenderId:"148202708351",appId:"1:148202708351:web:692464c6574b8a87a78e4a"};
 const app=initializeApp(cfg,'admin'), auth=getAuth(app), db=getDatabase(app);
@@ -193,13 +195,28 @@ window.DB={
   async read(p){ return (await get(ref(db,p))).val(); },
   set(p,v){ return set(ref(db,p), v===undefined?null:v); },
   update(p,v){ return update(ref(db,p),v); },
-  reset(e){ return sendPasswordResetEmail(auth,e); }
+  reset(e){ return sendPasswordResetEmail(auth,e); },
+  /* 建立登入帳號。
+     - 用「第二條連線」建，所以不會把 Nina 從後台踢出去
+     - 密碼是當場產生的 48 字元亂碼，不顯示、不儲存、用完就丟
+     - 建完立刻寄設定密碼信，對方自己設 —— 沒有任何人經手過能用的密碼
+     回傳 'created'（新建）或 'exists'（本來就有這個帳號） */
+  async createUser(email){
+    const app2=initializeApp(cfg,'mkuser-'+Date.now()), auth2=getAuth(app2);
+    const pw=Array.from(crypto.getRandomValues(new Uint8Array(24)))
+              .map(b=>('0'+b.toString(16)).slice(-2)).join('');
+    let r='created';
+    try{ await createUserWithEmailAndPassword(auth2,email,pw); }
+    catch(e){ if((e&&e.code)==='auth/email-already-in-use') r='exists'; else throw e; }
+    finally{ try{ await signOut(auth2); }catch(e){} }
+    return r;
+  }
 };
 window.dispatchEvent(new Event('db-ready'));
 </script>
 
 <script>
-const VER='2026-09-04a';
+const VER='2026-09-04b';
 const EK = e => String(e||'').replace(/\./g,',').replace(/@/g,',');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('zh-TW');
@@ -451,6 +468,63 @@ function renderDetail(){
     </div>
   </div>
 
+
+  <div class="card">
+    <h2>品牌與門市 <span class="pill p-warn">門市＝計費單位</span></h2>
+    <div class="sub">公司底下分品牌，品牌底下分門市。<b>門市只有妳能新增，客戶自己加不了。</b></div>
+
+    ${(function(){
+      const brands=m.brands||{};
+      const bl=Object.keys(brands);
+      const used={};
+      let html='';
+      bl.forEach(code=>{
+        const bs=sids.filter(sid=>((m.stores||{})[sid]||{}).brand===code);
+        bs.forEach(x=>used[x]=1);
+        html+=`<h3>${esc(brands[code].name||code)}　<span class="note">代碼 ${esc(code)}</span></h3>`;
+        html+= bs.length? storeTable(bs) : '<div class="note">這個品牌底下還沒有門市。</div>';
+      });
+      const orphan=sids.filter(sid=>!used[sid]);
+      if(orphan.length){
+        html+=`<h3>還沒歸到品牌的門市</h3>`+storeTable(orphan);
+      }
+      if(!bl.length && !orphan.length) html='<div class="note" style="padding:8px 0">還沒有任何品牌或門市。</div>';
+      return html;
+    })()}
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <button class="btn g mini" onclick="toggleForm('formBrand')">＋ 新增品牌</button>
+      <button class="btn o mini" onclick="toggleForm('formStore')">＋ 新增門市</button>
+      ${sids.some(sid=>!((m.stores||{})[sid])) ? '<button class="btn g mini" onclick="registerExisting()">登記現有門市（一次性）</button>' : ''}
+    </div>
+
+    <div id="formBrand" class="hide" style="margin-top:16px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px 18px">
+      <h3 style="margin-top:0">新增品牌</h3>
+      <div class="two">
+        <div class="fld"><label>品牌名稱</label><input id="b_name" placeholder="例：健人餐廚"></div>
+        <div class="fld"><label>品牌代碼（英文大寫 2～3 碼）</label><input id="b_code" placeholder="JR" maxlength="3">
+          <div class="hint">門市代號和單號會用到，例：JR1-20260904-01</div></div>
+      </div>
+      <button class="btn" onclick="addBrand()">建立品牌</button>
+    </div>
+
+    <div id="formStore" class="hide" style="margin-top:16px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:16px 18px">
+      <h3 style="margin-top:0">新增門市</h3>
+      <div class="two">
+        <div class="fld"><label>門市名稱</label><input id="s_name" placeholder="例：健人餐廚竹北店"></div>
+        <div class="fld"><label>所屬品牌</label><select id="s_brand">
+          ${Object.keys(m.brands||{}).map(c=>`<option value="${esc(c)}">${esc((m.brands[c].name)||c)}（${esc(c)}）</option>`).join('')||'<option value="">（請先建立品牌）</option>'}
+        </select></div>
+      </div>
+      <div class="fld"><label>這間店的登入信箱（選填）</label><input id="s_email" placeholder="留空＝用公司共用帳號">
+        <div class="hint">填了就會<b>自動建立帳號並寄設定密碼信</b>，這間店只看得到自己的訂單。<br>
+          密碼是當場產生的亂碼，不顯示也不儲存 —— 妳和我都不會知道，對方自己在信裡設。</div></div>
+      <button class="btn o" id="addStoreBtn" onclick="addStore()">建立門市</button>
+      <div class="alert a-amb" style="margin-top:14px;margin-bottom:0"><span>💰</span><div>
+        新增一間門市，本期年費會多 <b>$1,500</b>（試算用，實際金額在下面「合約與收款」可以改）。</div></div>
+    </div>
+  </div>
+
   <div class="card">
     <h2>LINE 連線狀態 ${T.lineCfg?'<span class="pill p-ok">✓ 已設定</span>':'<span class="pill p-off">未設定</span>'}</h2>
     ${T.lineCfg?`<div class="note">中繼網址與權杖已設定。廠商群組在叫貨系統的「廠商管理 → LINE 通知設定」裡管理。</div>`
@@ -580,6 +654,92 @@ window.sendReset=async function(key,btn){
   try{ await DB.reset(email); toast('已寄出到 '+email); }
   catch(e){ toast('寄不出去：'+((e&&e.code)||e.message||e)); }
   if(btn){ btn.disabled=false; btn.dataset.armed='0'; btn.textContent='寄設定密碼信'; btn.className='btn g mini'; }
+};
+
+
+/* ---------------- 品牌與門市 ---------------- */
+function storeTable(ids){
+  const T=TENANTS[CUR], m=T.meta||{};
+  return `<div class="scroll"><table>
+    <tr><th>門市</th><th>代號</th><th class="r">訂單</th><th>最後叫貨</th><th>專屬帳號</th><th>狀態</th></tr>
+    ${ids.map(sid=>{ const s=T.stores[sid], sm=(m.stores||{})[sid]||{};
+      const own=Object.keys(T.acl).filter(k=>((T.acl[k]||{}).stores||{})[sid]===true);
+      return `<tr>
+        <td><b>${esc(s.name)}</b></td>
+        <td class="note">${esc(sm.code||sid.slice(0,8)+'…')}</td>
+        <td class="r">${s.orders}</td>
+        <td>${s.last?esc(s.last):'<span class="note">還沒叫過</span>'}</td>
+        <td class="note">${own.length?own.map(k=>esc(keyToEmail(k)||k)).join('<br>'):'用共用帳號'}</td>
+        <td>${s.orders?'<span class="pill p-ok">使用中</span>':'<span class="pill p-bad">未啟用</span>'}</td>
+      </tr>`;}).join('')}
+  </table></div>`;
+}
+window.toggleForm=function(id){ const el=document.getElementById(id); if(el)el.classList.toggle('hide'); };
+
+window.addBrand=async function(){
+  const g=id=>((document.getElementById(id)||{}).value||'').trim();
+  const name=g('b_name'), code=g('b_code').toUpperCase();
+  if(!name){ toast('請填品牌名稱'); return; }
+  if(!/^[A-Z]{2,3}$/.test(code)){ toast('品牌代碼請用 2～3 個英文大寫字母'); return; }
+  if(((TENANTS[CUR].meta||{}).brands||{})[code]){ toast('這個代碼已經用過了'); return; }
+  try{
+    await DB.set('tenants/'+CUR+'/meta/brands/'+code, { name, code, createdAt:new Date().toISOString() });
+    await loadAll(); renderDetail(); toast('品牌已建立');
+  }catch(e){ toast('建不起來：'+(e.message||e)); }
+};
+
+/* 下一個門市代號：品牌代碼 ＋ 流水號，例 JR5 */
+function nextStoreCode(brand){
+  const m=TENANTS[CUR].meta||{}, used=Object.values(m.stores||{})
+    .map(s=>String(s.code||'')).filter(c=>c.indexOf(brand)===0);
+  let n=1; while(used.includes(brand+n)) n++;
+  return brand+n;
+}
+
+window.addStore=async function(){
+  const g=id=>((document.getElementById(id)||{}).value||'').trim();
+  const name=g('s_name'), brand=g('s_brand'), email=g('s_email');
+  if(!name){ toast('請填門市名稱'); return; }
+  if(!brand){ toast('請先建立品牌'); return; }
+  if(email && !email.includes('@')){ toast('信箱格式不對'); return; }
+  const code=nextStoreCode(brand), sid=code;
+  if((TENANTS[CUR].meta.stores||{})[sid]){ toast('代號 '+code+' 已存在'); return; }
+  const b=document.getElementById('addStoreBtn'); if(b){b.disabled=true;b.textContent='建立中…';}
+  try{
+    await DB.set('tenants/'+CUR+'/meta/stores/'+sid,
+      { name, code, brand, createdAt:new Date().toISOString() });
+    let msg='門市 '+code+' 已建立';
+    if(email){
+      const r=await DB.createUser(email);
+      await DB.set('tenants/'+CUR+'/acl/'+EK(email),
+        { stores:{[sid]:true}, label:name+' 專屬帳號' });
+      await DB.reset(email);
+      msg += r==='exists' ? '；帳號本來就有，已寄設定密碼信' : '；帳號已建立並寄出設定密碼信';
+    }
+    await loadAll(); renderDetail(); toast(msg);
+  }catch(e){ toast('建不起來：'+((e&&e.code)||e.message||e)); }
+  if(b){b.disabled=false;b.textContent='建立門市';}
+};
+
+/* 一次性：把已經有訂單、但還沒登記在 meta 的門市補登進來（保留原本的門市代號，舊訂單才不會對不上）*/
+window.registerExisting=async function(){
+  const T=TENANTS[CUR], m=T.meta||{};
+  const todo=Object.keys(T.stores).filter(sid=>!((m.stores||{})[sid]));
+  if(!todo.length){ toast('沒有要補登的門市'); return; }
+  try{
+    for(const sid of todo){
+      const nm=T.stores[sid].name||sid;
+      const mm=String(nm).match(/([A-Z]{2,3})(\d+)\s*$/);   // 從名字尾巴猜代號，例「…巨城店JR2」
+      await DB.set('tenants/'+CUR+'/meta/stores/'+sid, {
+        name:nm, code: mm?mm[0]:sid.slice(0,6),
+        brand: mm?mm[1]:'', legacyId:true, createdAt:new Date().toISOString() });
+      if(mm && !((m.brands||{})[mm[1]])){
+        await DB.set('tenants/'+CUR+'/meta/brands/'+mm[1],
+          { name:mm[1], code:mm[1], createdAt:new Date().toISOString() });
+      }
+    }
+    await loadAll(); renderDetail(); toast('補登了 '+todo.length+' 間門市');
+  }catch(e){ toast('補登失敗：'+(e.message||e)); }
 };
 
 /* ---------------- 圖表 ---------------- */
