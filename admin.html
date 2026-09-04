@@ -216,7 +216,7 @@ window.dispatchEvent(new Event('db-ready'));
 </script>
 
 <script>
-const VER='2026-09-04c';
+const VER='2026-09-04d';
 const EK = e => String(e||'').replace(/\./g,',').replace(/@/g,',');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('zh-TW');
@@ -392,7 +392,7 @@ function renderList(){
     <h2>所有客戶
       <button class="btn o mini" style="margin-left:auto" onclick="show('add',document.querySelectorAll('.nav button')[2])">＋ 新增客戶</button></h2>
     <div class="scroll"><table>
-      <tr><th>公司 / 代號</th><th class="r">門市</th><th class="r">訂單</th><th class="r">商品</th><th>合約到期</th><th class="r">本期年費</th><th>收款</th><th>開通</th><th>狀態</th></tr>
+      <tr><th>公司 / 代號</th><th class="r">門市</th><th class="r">訂單</th><th class="r">商品</th><th>合約到期</th><th class="r">本期年費</th><th>收款</th><th>開通</th><th>狀態</th><th class="r">管理</th></tr>
       ${ids.map(id=>{ const T=TENANTS[id], m=T.meta||{}, cs=contractState(m);
         return `<tr class="row" onclick="openTenant('${esc(id)}')">
           <td><b>${esc(m.company||id)}</b><div class="note">${esc(id)}${m.brand?'　·　'+esc(m.brand):''}</div></td>
@@ -403,7 +403,23 @@ function renderList(){
           <td class="r">${(m.contract||{}).fee?'$'+fmt(m.contract.fee):'—'}</td>
           <td>${payState(m)}</td>
           <td><span class="pill ${doneCount(m)===STEPS.length?'p-ok':'p-warn'}">${doneCount(m)}/${STEPS.length}</span></td>
-          <td>${cs.pill}</td></tr>`; }).join('')}
+          <td>${(m.suspended?'<span class="pill p-bad">已停用</span>':cs.pill)}</td>
+          <td class="r" style="white-space:nowrap" onclick="event.stopPropagation()">
+            <button class="btn g mini" onclick="toggleSuspend('${esc(id)}')">${m.suspended?'恢復':'停用'}</button>
+            ${(Object.keys(T.stores).length===0 && T.totalOrders===0)
+              ? `<button class="btn g mini" onclick="askDelTenant('${esc(id)}')">刪除</button>`
+              : `<button class="btn g mini" disabled title="有門市或訂單，不能直接刪">刪除</button>`}
+          </td></tr>
+          <tr id="delT_${esc(id)}" class="hide"><td colspan="10" style="background:var(--red-soft)">
+            <div style="padding:6px 2px">
+              <b style="color:#8A3826">刪除客戶「${esc(m.company||id)}」</b>
+              <div class="note" style="margin:6px 0 10px">這個客戶沒有門市也沒有訂單，可以直接刪。會清掉 <code>tenants/${esc(id)}</code> 底下的權限名單與設定。</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <input id="dtc_${esc(id)}" placeholder="打出客戶代號：${esc(id)}" style="max-width:240px;font-size:13px;padding:7px 11px">
+                <button class="btn mini" style="background:#B04A32" onclick="doDelTenant('${esc(id)}',this)">確定刪除</button>
+                <button class="btn g mini" onclick="askDelTenant('${esc(id)}')">取消</button>
+              </div>
+            </div></td></tr>`; }).join('')}
     </table></div>
     <div class="note" style="margin-top:12px">點任何一列進去看細節。這些數字全部是從資料庫即時算出來的。</div>
   </div>`;
@@ -656,6 +672,45 @@ window.sendReset=async function(key,btn){
   if(btn){ btn.disabled=false; btn.dataset.armed='0'; btn.textContent='寄設定密碼信'; btn.className='btn g mini'; }
 };
 
+
+/* ---------------- 客戶：停用／刪除 ---------------- */
+/* 停用＝把權限名單整份搬到 meta 裡收著，客戶所有帳號立刻讀不到自己的資料。
+   資料一個字都沒動，恢復就是搬回來。 */
+window.toggleSuspend=async function(id){
+  const T=TENANTS[id], m=T.meta||{};
+  try{
+    if(m.suspended){
+      const bak=await DB.read('tenants/'+id+'/meta/aclSuspended');
+      if(bak) await DB.set('tenants/'+id+'/acl', bak);
+      await DB.set('tenants/'+id+'/meta/aclSuspended', null);
+      await DB.update('tenants/'+id+'/meta', { suspended:null });
+      await loadAll(); renderList(); toast('已恢復，客戶可以登入了');
+    }else{
+      const cur=await DB.read('tenants/'+id+'/acl');
+      if(!cur){ toast('這個客戶沒有權限名單'); return; }
+      await DB.set('tenants/'+id+'/meta/aclSuspended', cur);
+      await DB.set('tenants/'+id+'/acl', null);
+      await DB.update('tenants/'+id+'/meta', { suspended:new Date().toISOString() });
+      await loadAll(); renderList(); toast('已停用，客戶的帳號現在登不進去了');
+    }
+  }catch(e){ toast('改不了：'+((e&&e.code)||e.message||e)); }
+};
+window.askDelTenant=function(id){ const r=document.getElementById('delT_'+id); if(r)r.classList.toggle('hide'); };
+window.doDelTenant=async function(id,btn){
+  const T=TENANTS[id];
+  if(Object.keys(T.stores).length || T.totalOrders){ toast('這個客戶還有門市或訂單，要先把門市刪掉'); return; }
+  const got=((document.getElementById('dtc_'+id)||{}).value||'').trim();
+  if(got!==id){ toast('請完整打出客戶代號：'+id); return; }
+  if(btn){btn.disabled=true;btn.textContent='刪除中…';}
+  try{
+    await DB.set('tenants/'+id+'/acl', null);
+    await DB.set('tenants/'+id+'/meta', null);
+    await loadAll();
+    if(CUR===id) CUR=Object.keys(TENANTS)[0]||null;
+    renderList(); toast('已刪除客戶「'+id+'」');
+  }catch(e){ toast('刪不掉：'+((e&&e.code)||e.message||e)); }
+  if(btn){btn.disabled=false;btn.textContent='確定刪除';}
+};
 
 /* ---------------- 品牌與門市 ---------------- */
 function storeTable(ids){
