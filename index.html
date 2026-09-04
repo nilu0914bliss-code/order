@@ -565,7 +565,7 @@ function renderGate(){
       <div class="muted" style="text-align:center;margin-top:16px;font-size:12px;line-height:1.8;border-top:1px solid var(--line);padding-top:14px">
         第一次使用？帳號由專人開通，<b>請提供你的信箱給我們</b>。<br>
         <a href="${SUPPORT_LINE}" target="_blank" rel="noopener" style="display:inline-block;margin-top:9px;background:#06C755;color:#fff;font-weight:800;font-size:12.5px;padding:8px 18px;border-radius:99px;text-decoration:none">加入 ${SUPPORT_NAME}</a>
-        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-03b</div></div>`;
+        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-03c</div></div>`;
     setTimeout(()=>{const e=document.getElementById(load('p_lastemail')?'gPw':'gEmail');e&&e.focus();},120);return;}
   if(gateStep==='forgot'){
     b.innerHTML=`<h2 style="text-align:center">設定密碼</h2>
@@ -654,8 +654,8 @@ window.enterApp=function(){
   store.set('p_selstore',JSON.stringify(selStore));
   store.set('p_selstorename',JSON.stringify(curStoreName()));
   document.getElementById('gate').classList.add('hide');
-  { const mb=document.getElementById('migBtn'), em=(CLOUD_USER&&CLOUD_USER.email)||'';
-    if(mb)mb.style.display=(em.toLowerCase()===MIG_OWNER)?'block':'none'; }
+  { const mb=document.getElementById('migBtn');
+    if(mb)mb.style.display=migCanSee()?'block':'none'; }
   applyTitle(true);        // 進來了，分頁換成客戶的品牌
   cloudBind(); render();
 };
@@ -671,7 +671,9 @@ window.enterApp=function(){
    5. 核對是獨立重算，不用系統自己的函式
    ============================================================ */
 const MIG_BRANCHES=['shared','order','acl'];
-const MIG_OWNER='nilu0914bliss@gmail.com';   // 只有 Nina 看得到這個工具
+/* 誰看得到搬家工具：ACL 是「所有門市」的帳號＝老闆。
+   不寫死信箱，這樣賣給別家客戶時他們的老闆帳號也適用，店員帳號則看不到。 */
+function migCanSee(){ return !!(typeof CLOUD_ACL!=='undefined' && CLOUD_ACL && CLOUD_ACL.all===true); }
 
 function migLog(html,cls){
   const b=document.getElementById('migLog'); if(!b)return;
@@ -2239,7 +2241,7 @@ function lineGroupCheck(){
           <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${Number(s.lineSize)||1} 人`
             :`存的是「${esc(String(s.lineTo).slice(0,40))}」共 ${String(s.lineTo).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
       </div>`;}).join('')}
-    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-03b</div></div>`;}
+    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-03c</div></div>`;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
   openModal(`<h3>LINE 自動通知設定</h3>
