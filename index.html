@@ -522,7 +522,14 @@ function cloudBind(){
     if(v){weekly={};Object.keys(v).forEach(k=>{weekly[decK(k)]=v[k];});}
     else if(Object.keys(weekly).length)cloudPushShared();
     render();}));
-  cloudUnsub.push(CLOUD.watch(SH('line'),v=>{ if(v&&v.url!==undefined){lineCfg={...lineCfg,...v};persistLocal();render();} }));
+  /* LINE 設定看 meta（後台管的）；meta 沒有才吃舊的 shared/line */
+  if(TENANT_ON){
+    cloudUnsub.push(CLOUD.watch(TP()+'meta/line',v=>{
+      if(v&&v.url!==undefined){LINEMETA=true;lineCfg={...lineCfg,...v};persistLocal();render();} }));
+    cloudUnsub.push(CLOUD.watch(TP()+'meta/lineGroups',v=>{ LINEGROUPS=v||null; render(); }));
+  }
+  cloudUnsub.push(CLOUD.watch(SH('lineSizes'),v=>{ LINESIZES=v||null; }));
+  cloudUnsub.push(CLOUD.watch(SH('line'),v=>{ if(!LINEMETA&&v&&v.url!==undefined){lineCfg={...lineCfg,...v};persistLocal();render();} }));
   cloudUnsub.push(CLOUD.watch(SH('lineUsage'),v=>{ if(v){lineUsage=v;persistLocal();render();} }));
   cloudUnsub.push(CLOUD.watch(SH('wkalias'),v=>{
     if(v){wkAlias={};Object.keys(v).forEach(k=>{wkAlias[decK(k)]=v[k];});}
@@ -585,7 +592,7 @@ function renderGate(){
       <div class="muted" style="text-align:center;margin-top:16px;font-size:12px;line-height:1.8;border-top:1px solid var(--line);padding-top:14px">
         第一次使用？帳號由專人開通，<b>請提供你的信箱給我們</b>。<br>
         <a href="${SUPPORT_LINE}" target="_blank" rel="noopener" style="display:inline-block;margin-top:9px;background:#06C755;color:#fff;font-weight:800;font-size:12.5px;padding:8px 18px;border-radius:99px;text-decoration:none">加入 ${SUPPORT_NAME}</a>
-        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-04d</div></div>`;
+        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-04f</div></div>`;
     setTimeout(()=>{const e=document.getElementById(load('p_lastemail')?'gPw':'gEmail');e&&e.focus();},120);return;}
   if(gateStep==='forgot'){
     b.innerHTML=`<h2 style="text-align:center">設定密碼</h2>
@@ -1372,7 +1379,7 @@ function vReturns(){
 function vSuppliers(){
   const seg=(t,title,bg)=>{const list=suppliers.map((s,i)=>({...s,i})).filter(s=>s.type===t);
     return `<div class="card" style="padding:0;overflow:hidden"><div style="padding:12px 16px;font-weight:700;background:${bg}">${title}（${list.length}）</div>
-    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#F7EFD9;color:#7C6015">未稅 ＋5%</span>`:''}${(s.basis&&s.basis!=='收貨日')?` <span class="pill" style="background:#E7EAEF;color:#3A5470">依${s.basis==='出貨日'?'預計到貨日':'下單日'}</span>`:''}${s.lineTo?` <span class="pill done">💬 LINE ${Number(s.lineSize)||1}人</span>`:''}</td>
+    <table><tbody>${list.map(s=>`<tr><td><b>${esc(s.name)}</b>${(s.pricing&&s.pricing!=='固定')?` <span class="pill c">時價 · ${s.pricing==='週報'?'每週報價':'隨貨計價'}</span>`:''}${s.tax==='未稅'?` <span class="pill" style="background:#F7EFD9;color:#7C6015">未稅 ＋5%</span>`:''}${(s.basis&&s.basis!=='收貨日')?` <span class="pill" style="background:#E7EAEF;color:#3A5470">依${s.basis==='出貨日'?'預計到貨日':'下單日'}</span>`:''}${lineTargetOf(s.name)?` <span class="pill done">💬 LINE ${lineSizeOf(s.name)}人</span>`:''}</td>
       <td class="right"><button class="btn grey mini" onclick="openSupplier(${s.i})">編輯</button></td></tr>`).join('')||'<tr><td class="muted" style="padding:16px">尚無廠商</td></tr>'}</tbody></table></div>`;};
   return `<div class="crumb">首頁 / 產品</div>
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h1 style="margin-bottom:0">廠商管理</h1>
@@ -1401,16 +1408,16 @@ function openSupplier(i){const s=i>=0?suppliers[i]:{name:'',type:'月結',pricin
       <option value="週報" ${pc==='週報'?'selected':''}>時價 · 每週報價（每週二給新價目表）</option>
       <option value="隨貨" ${pc==='隨貨'?'selected':''}>時價 · 隨貨計價（收貨當天才知道價）</option></select>
       <div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.6">「每週報價」→ 到「本週菜價」登錄，叫貨自動套用當週價。<br>「隨貨計價」→ 叫貨只記數量，收貨確認時填實際單價。</div></div>
-    <div class="fld"><label>LINE 叫貨群組 ID（選填）</label>
-      <input id="sLineTo" value="${esc(s.lineTo||'')}" placeholder="C 開頭的一長串，從 Apps Script 那頁複製" oninput="chkLineId()">
-      <div id="lnChk" style="font-size:12px;margin-top:7px"></div>
-      <div style="display:flex;align-items:center;gap:9px;margin-top:9px;flex-wrap:wrap">
-        <span class="muted" style="font-size:13px">群組人數</span>
-        <input id="sLineSize" type="number" min="1" style="width:90px" value="${Number(s.lineSize)||1}">
-        <span class="muted" style="font-size:13px">人</span>
-        <span class="pill done">每次發送自動更新</span></div>
-      <div class="muted" style="font-size:11.5px;margin-top:7px;line-height:1.7">填了群組 ID 之後，送出這家廠商的叫貨單就會<b>自動發到那個群</b>。<br>
-        人數<b>不用自己維護</b>——每次發送時系統會跟 LINE 問群組現在幾個人，回填到這裡，則數就永遠算得準。上面那格只是還沒發過任何一張單時的預設值。</div></div>
+    ${(function(){ const to=s.name?lineTargetOf(s.name):'';
+      return `<div class="fld"><label>LINE 叫貨群組</label>
+      <div style="border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:#F4F4F1">
+        ${to?`<span style="color:var(--green);font-weight:700;font-size:13px">✓ 已設定</span>
+              <span class="muted" style="font-size:12px">　${esc(String(to).slice(0,7))}…${esc(String(to).slice(-4))}　${lineSizeOf(s.name)} 人</span>
+              <div class="muted" style="font-size:11.5px;margin-top:5px">送出這家的叫貨單會自動發到這個群。</div>`
+             :`<span class="muted" style="font-size:13px">尚未設定</span>
+              <div class="muted" style="font-size:11.5px;margin-top:5px">送出訂單後可以用「📤 手動傳」。</div>`}
+      </div>
+      <div class="muted" style="font-size:11.5px;margin-top:7px;line-height:1.7">群組 ID 由 <b>2AM 統一設定</b>，這裡不用填也改不到。要新增或更換群組請聯絡官方 LINE。</div></div>`;})()}
     <div class="modact">${i>=0?`<button class="btn grey mini" onclick="delSupplier(${i})" style="margin-right:auto">刪除</button>`:''}<button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveSupplier(${i})">儲存</button></div>`);chkLineId();}
 function chkLineId(){const el=document.getElementById('sLineTo'),box=document.getElementById('lnChk');
   if(!el||!box)return;
@@ -1430,11 +1437,8 @@ function saveSupplier(i){const name=document.getElementById('sName').value.trim(
   const basis=document.getElementById('sBasis').value;
   if(!name){toast('請輸入廠商名稱');return;}
   if(suppliers.some((x,j)=>x.name===name&&j!==i)){toast('已有同名廠商');return;}
-  const lineToRaw=(document.getElementById('sLineTo')||{value:''}).value.trim();
-  const lineTo=cleanLineId(lineToRaw);
-  if(lineToRaw&&!lineIdOk(lineTo)){toast('LINE 群組 ID 格式不對，先修好再存');return;}
-  const lineSize=Math.max(1,parseInt((document.getElementById('sLineSize')||{}).value)||1);
-  if(i>=0)suppliers[i]={...suppliers[i],name,type,pricing,tax,basis,lineTo,lineSize};else suppliers.push({name,type,pricing,tax,basis,lineTo,lineSize});
+  /* 群組 ID 已改由後台管，這裡不動它 —— 舊欄位原封不動留著（退路要用） */
+  if(i>=0)suppliers[i]={...suppliers[i],name,type,pricing,tax,basis};else suppliers.push({name,type,pricing,tax,basis});
   persist();hideModal();toast('已儲存 ✓');render();}
 /* ====== 本週菜價（時價 · 每週報價） ====== */
 let wkSup=null,wkWeek=null;
@@ -2172,6 +2176,19 @@ async function afterSubmit(nos){
    不會出現在公開的網頁原始碼。 */
 let lineCfg=load('p_linecfg')||{url:'',secret:'',on:true,quota:200};
 let lineUsage=load('p_lineusage')||{};      // {'2026-08': 則數}
+/* ── LINE 設定改由 2AM 後台統一管理（2026-09-04）────────────────────
+   客戶不會自己設定群組 ID，也不該有能力改到。所以中繼網址、通關密語、
+   每家廠商的群組 ID 都搬到 tenants/<客戶>/meta/ 底下 —— 規則是
+   「這家的成員可以讀、只有 2AM 管理員可以寫」。
+   讀不到 meta 的時候自動退回舊欄位（supplier.lineTo / shared/line），
+   所以搬移前、搬移後、甚至 TENANT_ON 退回 false，都不會斷。
+   例外：群組人數是每次發送時 LINE 現場回報的，客戶端要寫得進去，
+   所以那一項留在 shared/lineSizes。 */
+let LINEMETA=false;      // meta/line 讀到了沒
+let LINEGROUPS=null;     // meta/lineGroups   { 廠商key: {to,size} }   後台設定
+let LINESIZES =null;     // shared/lineSizes  { 廠商key: 實際人數 }    系統自動回填
+function supKey(n){return String(n||'').replace(/[.#$\[\]\/]/g,'_');}   // Firebase key 不吃這幾個字
+function lineAdminManaged(){return !!(LINEGROUPS||LINEMETA);}
 function lineMonth(){return isoAt(0).slice(0,7);}
 function lineUsed(){return Number(lineUsage[lineMonth()]||0);}
 function lineQuota(){return Number(lineCfg.quota||200);}
@@ -2185,9 +2202,23 @@ function cleanLineId(s){const t=String(s||'');
 function lineIdOk(s){return /^[CURcur][0-9a-fA-F]{32}$/.test(cleanLineId(s));}
 function migrateLineIds(){let n=0;suppliers.forEach(s=>{if(!s.lineTo)return;
   const c=cleanLineId(s.lineTo);if(c&&c!==s.lineTo){s.lineTo=c;n++;}});return n;}
-function lineTargetOf(sup){const x=suppliers.find(y=>y.name===sup);return cleanLineId(x&&x.lineTo);}
-function lineSizeOf(sup){const x=suppliers.find(y=>y.name===sup);return Math.max(1,Number(x&&x.lineSize)||1);}
-function cloudPushLine(){ if(CLOUD_ON&&window.CLOUD){CLOUD.set(SH('line'),lineCfg);CLOUD.set(SH('lineUsage'),lineUsage);} }
+/* 群組 ID：先看後台設定的，沒有才用舊的廠商欄位 */
+function lineTargetOf(sup){
+  const g=LINEGROUPS&&LINEGROUPS[supKey(sup)];
+  if(g&&g.to)return cleanLineId(g.to);
+  const x=suppliers.find(y=>y.name===sup);return cleanLineId(x&&x.lineTo);
+}
+/* 人數：LINE 現場回報的最準 → 後台填的 → 舊的廠商欄位 → 1 */
+function lineSizeOf(sup){
+  const k=supKey(sup);
+  const live=Number(LINESIZES&&LINESIZES[k]);
+  if(live>0)return live;
+  const g=LINEGROUPS&&LINEGROUPS[k];
+  if(g&&Number(g.size)>0)return Number(g.size);
+  const x=suppliers.find(y=>y.name===sup);return Math.max(1,Number(x&&x.lineSize)||1);
+}
+/* 已經不寫 shared/line 了（那份由後台管）；只回寫用量與人數 */
+function cloudPushLine(){ if(CLOUD_ON&&window.CLOUD){CLOUD.set(SH('lineUsage'),lineUsage);} }
 function bumpUsage(n){const m=lineMonth();lineUsage[m]=lineUsed()+n;persistLocal();cloudPushLine();}
 /* Content-Type 用預設的 text/plain，才不會觸發 preflight（Apps Script 不處理 OPTIONS） */
 async function lineSend(to,text){
@@ -2206,8 +2237,13 @@ async function lineSendOrder(no){
   // 人數以 LINE 現場回報的為準，抓不到才用廠商設定裡填的
   const n=Number(j&&j.count)>0?Number(j.count):lineSizeOf(o.supplier);
   o.lineCount=n;
-  const sup=suppliers.find(x=>x.name===o.supplier);
-  if(sup&&Number(j&&j.count)>0&&Number(sup.lineSize)!==n){sup.lineSize=n;cloudPushShared();}
+  /* 人數回填到 shared/lineSizes（客戶端寫得進去的地方），不再改廠商資料 */
+  if(Number(j&&j.count)>0){
+    const k=supKey(o.supplier);
+    LINESIZES=LINESIZES||{};
+    if(Number(LINESIZES[k])!==n){ LINESIZES[k]=n;
+      if(CLOUD_ON&&window.CLOUD)CLOUD.set(SH('lineSizes'),LINESIZES); }
+  }
   cloudSaveOrder(o); bumpUsage(n); persistLocal();
   return true;}
 function lineDate(iso){return iso?`${+iso.split('-')[1]}/${+iso.split('-')[2]}（${weekday(iso)}）`:'';}
@@ -2252,50 +2288,51 @@ function orderMsg(o){
   return t;}
 /* 每家廠商的群組 ID 體檢表——發不出去的時候一眼看得出是哪家、錯在哪 */
 function lineGroupCheck(){
-  const rows=suppliers.filter(s=>s.lineTo);
-  if(!rows.length)return `<div class="muted" style="font-size:12px;margin:14px 0 4px">還沒有任何廠商填 LINE 群組 ID。到「廠商管理」點廠商就能填。</div>`;
+  const rows=suppliers.map(s=>({name:s.name,to:lineTargetOf(s.name),size:lineSizeOf(s.name),
+      src:(LINEGROUPS&&LINEGROUPS[supKey(s.name)]&&LINEGROUPS[supKey(s.name)].to)?'後台':'舊資料'}))
+    .filter(r=>r.to);
+  if(!rows.length)return `<div class="muted" style="font-size:12px;margin:14px 0 4px">還沒有任何廠商設定 LINE 群組。群組由 2AM 統一設定，需要開通請聯絡官方 LINE。</div>`;
   return `<div style="margin:16px 0 4px">
     <div style="font-weight:800;font-size:13.5px;margin-bottom:8px">群組 ID 體檢（${rows.length} 家）</div>
-    ${rows.map(s=>{const id=cleanLineId(s.lineTo),ok=lineIdOk(id);
+    ${rows.map(r=>{const id=r.to,ok=lineIdOk(id);
       return `<div style="display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)">
         <span style="flex:0 0 auto;font-weight:800;color:${ok?'var(--green)':'#B04A32'}">${ok?'✓':'✗'}</span>
-        <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(s.name)}</b>
-          <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${Number(s.lineSize)||1} 人`
-            :`存的是「${esc(String(s.lineTo).slice(0,40))}」共 ${String(s.lineTo).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
+        <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(r.name)}</b>
+          ${r.src==='舊資料'?'<span class="pill wait" style="margin-left:6px">舊資料</span>':''}
+          <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${r.size} 人`
+            :`存的是「${esc(String(id).slice(0,40))}」共 ${String(id).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
       </div>`;}).join('')}
-    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-04d</div></div>`;}
+    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-04f</div></div>`;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
   openModal(`<h3>LINE 自動通知設定</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">
-      送出叫貨單時自動發到該廠商的 LINE 群組。<b style="color:var(--ink)">權杖不會存在這裡</b>——它在妳自己的 Google Apps Script 裡，這邊只存中繼網址。</div>
+      送出叫貨單時，系統會自動發一則訊息到該廠商的 LINE 群組。這頁只顯示目前的狀態。</div>
     <div style="background:${pct>=90?'#F8EAE6':pct>=70?'var(--amber-soft)':'var(--green-soft)'};border-radius:14px;padding:14px 16px;margin-bottom:16px">
       <div style="font-weight:800;font-size:15px;color:${pct>=90?'#B04A32':pct>=70?'#7C6015':'var(--green)'}">本月已用 ${used} / ${q} 則</div>
       <div style="height:8px;background:#fff;border-radius:99px;margin-top:9px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=90?'#B04A32':pct>=70?'#7C6015':'#2F6B4F'}"></div></div>
       <div class="muted" style="font-size:11.5px;margin-top:8px">LINE 免費方案每月 200 則，算法是「發送次數 × 群裡人數」。<b style="color:var(--ink)">用完不會自動扣款</b>，只是發不出去，可以改用手動傳。</div>
     </div>
-    <div class="fld"><label>Apps Script 中繼網址</label>
-      <input id="lnUrl" value="${esc(lineCfg.url||'')}" placeholder="https://script.google.com/macros/s/..../exec"></div>
-    <div class="fld"><label>通關密語</label>
-      <input id="lnSec" type="password" value="${esc(lineCfg.secret||'')}" placeholder="妳在 Apps Script 裡設的那組">
-      <div class="muted" style="font-size:11.5px;margin-top:6px">要跟 Apps Script 裡的 <code>SECRET</code> 一模一樣。</div></div>
-    <div class="fld"><label>本月免費額度</label><input id="lnQ" type="number" value="${q}"></div>
-    <label style="display:flex;gap:9px;align-items:center;font-size:13.5px;cursor:pointer;margin-bottom:6px">
-      <input type="checkbox" id="lnOn" ${lineCfg.on!==false?'checked':''} style="width:17px;height:17px"> 送出訂單時自動通知廠商</label>
+    <div style="border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <b style="font-size:13.5px">中繼連線</b>
+        ${lineReady()?'<span class="pill done">✓ 已設定</span>':'<span class="pill" style="background:#F8EAE6;color:#B04A32">未設定</span>'}</div>
+      <div class="muted" style="font-size:11.5px;margin-top:7px;line-height:1.7">
+        ${lineReady()?'中繼網址與通關密語都已設定好，通關密語不會顯示。':'還沒設定，送出訂單不會自動通知廠商。請聯絡官方 LINE。'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line)">
+        <b style="font-size:13.5px">送單自動通知</b>
+        ${lineCfg.on!==false?'<span class="pill done">開啟</span>':'<span class="pill wait">關閉</span>'}</div>
+    </div>
     ${lineGroupCheck()}
+    <div style="background:var(--warn-soft);border-left:4px solid var(--yellow);border-radius:10px;padding:11px 13px;font-size:12px;line-height:1.8;margin-top:16px">
+      <b>這些設定由 2AM 統一管理。</b>要新增或修改廠商的 LINE 群組，請聯絡官方 LINE，我們幫您設定好就會自動同步到這裡，不用更新 App。
+      <a href="${SUPPORT_LINE}" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;background:#06C755;color:#fff;font-weight:800;font-size:12px;padding:7px 16px;border-radius:99px;text-decoration:none">加入 ${SUPPORT_NAME}</a></div>
     <div class="modact">
       <button class="btn grey mini" onclick="lineTest()" style="margin-right:auto">測試連線</button>
-      <button class="btn grey" onclick="hideModal()">取消</button><button class="btn" onclick="saveLineCfg()">儲存</button></div>`,true);}
-function saveLineCfg(){
-  lineCfg={...lineCfg,
-    url:(document.getElementById('lnUrl')||{}).value.trim(),
-    secret:(document.getElementById('lnSec')||{}).value.trim(),
-    quota:Math.max(1,parseInt((document.getElementById('lnQ')||{}).value)||200),
-    on:!!(document.getElementById('lnOn')||{}).checked};
-  persistLocal();cloudPushLine();hideModal();toast('已儲存 ✓');render();}
+      <button class="btn" onclick="hideModal()">關閉</button></div>`,true);}
 async function lineTest(){
-  const url=(document.getElementById('lnUrl')||{}).value.trim(),sec=(document.getElementById('lnSec')||{}).value.trim();
-  if(!url||!sec){toast('請先填網址與通關密語');return;}
+  const url=String(lineCfg.url||'').trim(),sec=String(lineCfg.secret||'').trim();
+  if(!url||!sec){toast('還沒設定中繼，請聯絡官方 LINE');return;}
   toast('測試中…');
   try{
     const r=await fetch(url,{method:'POST',body:JSON.stringify({secret:sec,action:'list'})});

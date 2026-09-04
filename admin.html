@@ -216,7 +216,7 @@ window.dispatchEvent(new Event('db-ready'));
 </script>
 
 <script>
-const VER='2026-09-04e';
+const VER='2026-09-04f';
 const EK = e => String(e||'').replace(/\./g,',').replace(/@/g,',');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('zh-TW');
@@ -320,7 +320,14 @@ async function loadAll(){
       suppliers: (shared.suppliers||[]).length || Object.keys(shared.suppliers||{}).length,
       weekly: Object.keys(shared.weekly||{}).length,
       totalOrders: allOrders.length,
-      lineCfg: shared.line || null };
+      lineCfg: meta.line || shared.line || null,
+      lineFromMeta: !!meta.line,
+      lineGroups: meta.lineGroups || null,
+      lineSizes: shared.lineSizes || null,
+      /* 廠商清單（要拿名字來配群組 ID）。舊資料是陣列，也可能是物件 */
+      supList: (Array.isArray(shared.suppliers)?shared.suppliers
+                : Object.keys(shared.suppliers||{}).map(k=>shared.suppliers[k]))
+               .filter(Boolean).map(s=>({name:s.name||'', lineTo:s.lineTo||'', lineSize:Number(s.lineSize)||0})) };
   }
   if(!CUR) CUR = Object.keys(TENANTS)[0] || null;
 }
@@ -445,6 +452,119 @@ function renderList(){
   </div>`;
 }
 
+/* ── LINE 設定（2AM 管，客戶只能看）──────────────────────────
+   中繼網址／通關密語／額度／開關 → tenants/<t>/meta/line
+   每家廠商的群組 ID              → tenants/<t>/meta/lineGroups/<廠商key>
+   兩個都在 meta 底下：客戶讀得到（叫貨系統要用），但只有 admin 寫得進去。
+   群組人數不放這裡 —— 那是每次發送時 LINE 現場回報的，由客戶端寫進 shared/lineSizes。 */
+function supKey(n){ return String(n||'').replace(/[.#$\[\]\/]/g,'_'); }
+function cleanLineId(s){ const t=String(s||''); const m=t.match(/[CURcur][0-9a-fA-F]{32}/);
+  return m?m[0]:t.replace(/[^A-Za-z0-9]/g,''); }
+function lineIdOk(s){ return /^[CURcur][0-9a-fA-F]{32}$/.test(cleanLineId(s)); }
+
+function renderLineCard(T){
+  const cfg=T.lineCfg||{}, G=T.lineGroups||{}, S=T.lineSizes||{};
+  const sups=T.supList||[];
+  const ready=!!(cfg.url&&cfg.secret);
+  const legacy=sups.filter(s=>s.lineTo && !(G[supKey(s.name)]||{}).to).length;
+  const setN=sups.filter(s=>(G[supKey(s.name)]||{}).to).length;
+  return `
+  <div class="card">
+    <h2>LINE 通知設定 ${ready?'<span class="pill p-ok">✓ 中繼已設定</span>':'<span class="pill p-off">未設定</span>'}
+      ${(!T.lineFromMeta&&cfg.url)?'<span class="pill p-warn">還在舊位置</span>':''}</h2>
+    <div class="note">這些是<b>妳</b>設定的，客戶在叫貨系統只看得到狀態、改不到。存進 <code>meta/</code>，規則上只有管理員寫得進去。</div>
+
+    ${(!T.lineFromMeta&&(cfg.url||legacy))?`<div class="alert a-amb" style="margin-top:12px"><span>📦</span><div>
+      這家的 LINE 設定還存在舊位置（<code>shared/</code>，客戶改得到）。
+      ${cfg.url?'中繼網址 1 筆':''}${cfg.url&&legacy?'、':''}${legacy?legacy+' 家廠商的群組 ID':''} 可以搬過來。
+      <br><button class="btn o mini" style="margin-top:8px" id="migLineBtn" onclick="migLine()">搬到後台管理</button></div></div>`:''}
+
+    <div class="two" style="margin-top:14px">
+      <div class="fld"><label>Apps Script 中繼網址</label>
+        <input id="ln_url" value="${esc(cfg.url||'')}" placeholder="https://script.google.com/macros/s/..../exec"></div>
+      <div class="fld"><label>通關密語</label>
+        <input id="ln_sec" value="${esc(cfg.secret||'')}" placeholder="Apps Script 裡的 SECRET">
+        <div class="hint">要跟 Apps Script 裡的 <code>SECRET</code> 一模一樣。客戶端要用它才發得出訊息，所以客戶讀得到——別跟其他密碼共用。</div></div>
+    </div>
+    <div class="two">
+      <div class="fld"><label>每月免費額度</label><input id="ln_q" type="number" value="${Number(cfg.quota)||200}"></div>
+      <div class="fld"><label>送單自動通知</label><select id="ln_on">
+        <option value="1"${cfg.on!==false?' selected':''}>開啟</option>
+        <option value="0"${cfg.on===false?' selected':''}>關閉（只能手動傳）</option></select></div>
+    </div>
+
+    <h3>各廠商的 LINE 群組　<span class="note">已設定 ${setN} / ${sups.length} 家</span></h3>
+    ${sups.length?`<div class="scroll"><table>
+      <tr><th>廠商</th><th>群組 ID</th><th class="r">人數</th><th>狀態</th></tr>
+      ${sups.map(s=>{ const k=supKey(s.name), g=G[k]||{};
+        const val=g.to||'', ok=val?lineIdOk(val):null;
+        const size=Number(S[k])||Number(g.size)||0;
+        return `<tr>
+          <td><b>${esc(s.name)}</b>${(!val&&s.lineTo)?'<div class="note">舊資料有：'+esc(String(s.lineTo).slice(0,10))+'…</div>':''}</td>
+          <td><input id="lg_${esc(k)}" value="${esc(val)}" placeholder="C 開頭再接 32 個英數字" style="min-width:280px"></td>
+          <td class="r">${size?size+' 人':'<span class="note">—</span>'}</td>
+          <td>${val?(ok?'<span class="pill p-ok">✓ 格式正確</span>':'<span class="pill p-off">✗ 格式不對</span>'):'<span class="note">未設定</span>'}</td>
+        </tr>`;}).join('')}
+    </table></div>
+    <div class="note" style="margin-top:8px">人數不用填 —— 每次發送時系統會跟 LINE 問群組現在幾個人，自動回填。</div>`
+    :`<div class="alert a-blue"><span>ℹ️</span><div>這家客戶還沒有廠商資料，先匯入廠商再設定群組。</div></div>`}
+
+    <div style="display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap">
+      <button class="btn" id="lnSaveBtn" onclick="saveLine()">儲存 LINE 設定</button>
+      <span class="note" id="lnHint"></span>
+    </div>
+    <div class="note" style="margin-top:10px">本週菜價筆數：${T.weekly}</div>
+  </div>`;
+}
+
+window.saveLine=async function(){
+  const g=id=>(document.getElementById(id)||{}).value||'';
+  const T=TENANTS[CUR], sups=T.supList||[];
+  const groups={}; const bad=[];
+  sups.forEach(s=>{
+    const k=supKey(s.name), raw=String(g('lg_'+k)||'').trim();
+    if(!raw)return;
+    const c=cleanLineId(raw);
+    if(!lineIdOk(c)){ bad.push(s.name); return; }
+    const old=(T.lineGroups||{})[k]||{};
+    groups[k]={ to:c, name:s.name, size:Number(old.size)||0 };
+  });
+  if(bad.length){ toast('這幾家的群組 ID 格式不對，先修好：'+bad.join('、')); return; }
+  const b=document.getElementById('lnSaveBtn'); if(b){b.disabled=true;b.textContent='儲存中…';}
+  try{
+    await DB.set('tenants/'+CUR+'/meta/line', {
+      url:g('ln_url').trim(), secret:g('ln_sec').trim(),
+      quota:Math.max(1,parseInt(g('ln_q'))||200), on:g('ln_on')!=='0' });
+    await DB.set('tenants/'+CUR+'/meta/lineGroups', Object.keys(groups).length?groups:null);
+    await loadAll(); renderDetail();
+    toast('已儲存，客戶端會自動同步 ✓');
+  }catch(e){ toast('存不進去：'+((e&&e.code)||e.message||e)); }
+  if(b){b.disabled=false;b.textContent='儲存 LINE 設定';}
+};
+
+/* 把舊的 shared/line 與各廠商的 lineTo 搬到 meta —— 只複製，不刪舊的 */
+window.migLine=async function(){
+  const T=TENANTS[CUR], sups=T.supList||[];
+  const b=document.getElementById('migLineBtn'); if(b){b.disabled=true;b.textContent='搬移中…';}
+  try{
+    const cfg=T.lineCfg||{};
+    if(cfg.url) await DB.set('tenants/'+CUR+'/meta/line', {
+      url:cfg.url||'', secret:cfg.secret||'',
+      quota:Number(cfg.quota)||200, on:cfg.on!==false });
+    const groups=Object.assign({},T.lineGroups||{});
+    let n=0;
+    sups.forEach(s=>{ const k=supKey(s.name);
+      if(groups[k]&&groups[k].to)return;
+      const c=cleanLineId(s.lineTo);
+      if(!lineIdOk(c))return;
+      groups[k]={ to:c, name:s.name, size:Number(s.lineSize)||0 }; n++; });
+    if(Object.keys(groups).length) await DB.set('tenants/'+CUR+'/meta/lineGroups', groups);
+    await loadAll(); renderDetail();
+    toast('搬好了：中繼 '+(cfg.url?'1':'0')+' 筆、群組 '+n+' 家（舊資料原封不動留著）');
+  }catch(e){ toast('搬不過去：'+((e&&e.code)||e.message||e)); }
+  if(b){b.disabled=false;b.textContent='搬到後台管理';}
+};
+
 function renderDetail(){
   const box=document.getElementById('v-detail');
   if(!CUR||!TENANTS[CUR]){ box.innerHTML='<div class="card"><h1>還沒有客戶</h1><div class="sub">先去「新增客戶」建立第一家。</div></div>'; return; }
@@ -564,12 +684,7 @@ function renderDetail(){
     </div>
   </div>
 
-  <div class="card">
-    <h2>LINE 連線狀態 ${T.lineCfg?'<span class="pill p-ok">✓ 已設定</span>':'<span class="pill p-off">未設定</span>'}</h2>
-    ${T.lineCfg?`<div class="note">中繼網址與權杖已設定。廠商群組在叫貨系統的「廠商管理 → LINE 通知設定」裡管理。</div>`
-      :`<div class="alert a-amb"><span>💬</span><div>這家客戶還沒設定 LINE 通知。訂單送出後廠商不會收到訊息。</div></div>`}
-    <div class="note" style="margin-top:8px">本週菜價筆數：${T.weekly}</div>
-  </div>
+  ${renderLineCard(T)}
 
   <div class="card">
     <h2>合約與收款</h2>
