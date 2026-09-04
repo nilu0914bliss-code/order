@@ -216,7 +216,7 @@ window.dispatchEvent(new Event('db-ready'));
 </script>
 
 <script>
-const VER='2026-09-04f';
+const VER='2026-09-04h';
 const EK = e => String(e||'').replace(/\./g,',').replace(/@/g,',');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('zh-TW');
@@ -276,7 +276,48 @@ window.doLogin=async function(){
 window.doLogout=async function(){ try{ await DB.logout(); }catch(e){} location.reload(); };
 
 /* ---------------- 讀資料 ---------------- */
+/* ── 2AM 自己的設定（不屬於任何一家客戶）──────────────────────
+   放在根目錄的 ops 節點。規則還沒加 ops 的話讀不到，就退回這台電腦的
+   localStorage，功能照常，只是換一台電腦要重設一次。 */
+let OPS={ linePlan:'high' };
+let OPS_REMOTE=false;
+/* LINE 官方公告：2026-11-01 起調價（中用量 800→1,000、高用量 1,200→1,400）。
+   加購只有高用量能買，前 50,000 則 0.2 元、超過的部分 0.15 元，沒有上限。
+   來源 tw.linebiz.com/column/LINEOA-2026-Price-Plan/ */
+const LINE_NEWFEE_FROM='2026-11-01';
+const LINE_PLANS={ light:{name:'輕用量',fee:0,   fee2:0,    quota:200,  addon:false},
+                   mid:  {name:'中用量',fee:800, fee2:1000, quota:3000, addon:false},
+                   high: {name:'高用量',fee:1200,fee2:1400, quota:6000, addon:true} };
+function today10(){ const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function planFee(p){ return today10()>=LINE_NEWFEE_FROM ? p.fee2 : p.fee; }
+function addonCost(n){ if(!(n>0))return 0;
+  return Math.ceil(Math.min(n,50000)*0.2 + Math.max(0,n-50000)*0.15); }
+function linePlan(){ return LINE_PLANS[OPS.linePlan]||LINE_PLANS.high; }
+async function loadOps(){
+  try{ const v=await DB.read('ops'); if(v&&typeof v==='object'){ OPS={...OPS,...v}; OPS_REMOTE=true; return; } }
+  catch(e){}
+  OPS_REMOTE=false;
+  try{ const l=JSON.parse(localStorage.getItem('adm_ops')||'null'); if(l)OPS={...OPS,...l}; }catch(e){}
+}
+async function saveOps(patch){
+  OPS={...OPS,...patch};
+  try{ localStorage.setItem('adm_ops',JSON.stringify(OPS)); }catch(e){}
+  try{ await DB.update('ops',OPS); OPS_REMOTE=true; }catch(e){ OPS_REMOTE=false; }
+}
+/* 共用一個官方帳號 → 真正的用量是所有客戶加起來 */
+function lineMonthKey(d){ const x=d||new Date();
+  return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0'); }
+function lineTotals(monthKey){
+  const rows=Object.keys(TENANTS).map(id=>({ id,
+    name:(TENANTS[id].meta||{}).company||id,
+    n:Number(((TENANTS[id].lineUsage)||{})[monthKey])||0 }))
+    .sort((a,b)=>b.n-a.n);
+  return { rows, total:rows.reduce((a,r)=>a+r.n,0) };
+}
+
 async function loadAll(){
+  await loadOps();
   const tRoot = await DB.read('tenants') || {};
   TENANTS={};
   for(const id of Object.keys(tRoot)){
@@ -324,6 +365,7 @@ async function loadAll(){
       lineFromMeta: !!meta.line,
       lineGroups: meta.lineGroups || null,
       lineSizes: shared.lineSizes || null,
+      lineUsage: shared.lineUsage || null,
       /* 廠商清單（要拿名字來配群組 ID）。舊資料是陣列，也可能是物件 */
       supList: (Array.isArray(shared.suppliers)?shared.suppliers
                 : Object.keys(shared.suppliers||{}).map(k=>shared.suppliers[k]))
@@ -408,6 +450,8 @@ function renderList(){
     </div>
   </div>
 
+  ${renderLineTotal()}
+
   <div class="card">
     <h2>要處理的事 <span class="pill ${alerts.length?'p-warn':'p-ok'}">${alerts.length} 件</span></h2>
     ${alerts.length?alerts.map(a=>`<div class="alert ${a[0]}"><span>${a[1]}</span><div>${a[2]}</div></div>`).join('')
@@ -452,6 +496,81 @@ function renderList(){
   </div>`;
 }
 
+/* ── LINE 則數：全部客戶合計 ────────────────────────────────
+   共用一個 2AM 官方帳號，所以額度是大家一起用的。
+   各客戶自己的叫貨系統只看得到自己那一份，真正會不會爆掉看這裡。 */
+function renderLineTotal(){
+  const now=new Date();
+  const thisKey=lineMonthKey(now);
+  const prev=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const P=linePlan();
+  const cur=lineTotals(thisKey), last=lineTotals(lineMonthKey(prev));
+  const pct=Math.min(100,Math.round(cur.total/P.quota*100));
+  const col=pct>=90?'var(--red)':pct>=70?'var(--warn)':'var(--green)';
+  /* 照這個月目前的速度，整個月會用到多少 */
+  const day=now.getDate(), dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const proj=day>=3?Math.round(cur.total/day*dim):null;
+  const over=proj!==null?proj-P.quota:null;
+  return `
+  <div class="card">
+    <h2>LINE 則數・全部客戶合計
+      <span class="pill ${pct>=90?'p-off':pct>=70?'p-warn':'p-ok'}">${cur.total} / ${fmt(P.quota)} 則</span></h2>
+    <div class="sub">共用一個 2AM 官方帳號 —— 額度是所有客戶一起用的。客戶在自己的叫貨系統只看得到自己那一份。</div>
+
+    <div style="height:12px;background:var(--panel2);border-radius:99px;margin:14px 0 8px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${col};border-radius:99px"></div></div>
+    <div class="note">${thisKey}　已用 <b style="color:${col}">${cur.total}</b> 則（${pct}%）　·　上個月合計 ${last.total} 則
+      ${proj!==null?`　·　照這個速度整月約 <b>${proj}</b> 則`:''}</div>
+
+    ${(proj!==null&&over>0)?`<div class="alert a-red" style="margin-top:12px"><span>🔴</span><div>
+      照目前速度，這個月會超出 <b>${fmt(over)}</b> 則。
+      ${P.addon
+        ? '高用量可以加購（前 50,000 則 0.2 元、之後 0.15 元，<b>沒有上限</b>），估計要多付 <b>$'+fmt(addonCost(over))+'</b>。'
+        : '<b>'+P.name+'不能加購，超出的就直接發不出去</b>，廠商收不到單。要嘛升級到高用量，要嘛那幾家改用手動傳。'}</div></div>`:''}
+    ${(proj===null||over<=0)&&pct>=70?`<div class="alert a-amb" style="margin-top:12px"><span>🟡</span><div>
+      已經用掉 ${pct}%，留意一下。額度用完不會自動扣款，只是發不出去。</div></div>`:''}
+
+    <div class="two" style="margin-top:16px">
+      <div class="fld"><label>目前的 LINE 方案</label>
+        <select id="ops_plan" onchange="setLinePlan(this.value)">
+          ${Object.keys(LINE_PLANS).map(k=>`<option value="${k}"${OPS.linePlan===k?' selected':''}>${LINE_PLANS[k].name}　月費 $${fmt(planFee(LINE_PLANS[k]))}　含 ${fmt(LINE_PLANS[k].quota)} 則</option>`).join('')}
+        </select>
+        <div class="hint">${OPS_REMOTE?'存在 Firebase，換電腦也在。':'⚠️ 目前只存在這台電腦（規則還沒開 <code>ops</code> 節點）。'}</div></div>
+      <div class="fld"><label>本月成本</label>
+        <div style="font-size:28px;font-weight:800;letter-spacing:-.03em;padding-top:4px">$${fmt(planFee(P)+((P.addon&&proj!==null&&over>0)?addonCost(over):0))}</div>
+        <div class="hint">月費 $${fmt(planFee(P))}${(P.addon&&proj!==null&&over>0)?'　＋　預估加購 $'+fmt(addonCost(over)):''}</div></div>
+    </div>
+    ${today10()<LINE_NEWFEE_FROM?`<div class="note" style="margin-top:-4px">📅 LINE 官方公告 <b>2026-11-01</b> 起調價：中用量 $800→$1,000、高用量 $1,200→$1,400（免費則數不變）。到那天這裡的月費會自動換成新價。</div>`:''}
+
+    ${cur.rows.some(r=>r.n)?`<div class="scroll" style="margin-top:6px"><table>
+      <tr><th>客戶</th><th class="r">本月則數</th><th class="r">佔比</th><th class="r">上月</th></tr>
+      ${cur.rows.map(r=>{ const lastN=(last.rows.find(x=>x.id===r.id)||{}).n||0;
+        return `<tr class="row" onclick="openTenant('${esc(r.id)}')">
+          <td><b>${esc(r.name)}</b><div class="note">${esc(r.id)}</div></td>
+          <td class="r"><b>${r.n}</b></td>
+          <td class="r">${cur.total?Math.round(r.n/cur.total*100):0}%</td>
+          <td class="r">${lastN||'—'}</td></tr>`;}).join('')}
+    </table></div>`
+    :`<div class="alert a-blue" style="margin-top:6px"><span>ℹ️</span><div>這個月還沒有任何客戶發出 LINE 通知。</div></div>`}
+
+    <div class="note" style="margin-top:10px">一則 ＝ 一次發送 × 群裡人數。發到 3 人的群算 3 則。</div>
+  </div>`;
+}
+window.setLinePlan=async function(v){
+  await saveOps({linePlan:v});
+  /* 換方案要把新額度同步給每一家共用帳號的客戶，
+     不然他們的叫貨系統會用舊額度自己把自己擋掉。 */
+  let n=0;
+  for(const id of Object.keys(TENANTS)){
+    const L=(TENANTS[id].meta||{}).line;
+    if(!L||L.shared===false)continue;
+    if(Number(L.quota)===linePlan().quota)continue;
+    try{ await DB.update('tenants/'+id+'/meta/line',{quota:linePlan().quota}); n++; }catch(e){}
+  }
+  await loadAll(); renderList();
+  toast('方案已改成「'+(LINE_PLANS[v]||{}).name+'」'+(n?'，同步 '+n+' 家客戶的額度':'')+(OPS_REMOTE?'':'（設定只存在這台電腦）'));
+};
+
 /* ── LINE 設定（2AM 管，客戶只能看）──────────────────────────
    中繼網址／通關密語／額度／開關 → tenants/<t>/meta/line
    每家廠商的群組 ID              → tenants/<t>/meta/lineGroups/<廠商key>
@@ -487,11 +606,16 @@ function renderLineCard(T){
         <div class="hint">要跟 Apps Script 裡的 <code>SECRET</code> 一模一樣。客戶端要用它才發得出訊息，所以客戶讀得到——別跟其他密碼共用。</div></div>
     </div>
     <div class="two">
-      <div class="fld"><label>每月免費額度</label><input id="ln_q" type="number" value="${Number(cfg.quota)||200}"></div>
+      <div class="fld"><label>官方帳號</label><select id="ln_shared">
+        <option value="1"${cfg.shared!==false?' selected':''}>共用 2AM 官方帳號（額度大家一起用）</option>
+        <option value="0"${cfg.shared===false?' selected':''}>這家客戶專用帳號</option></select>
+        <div class="hint">共用時客戶端不顯示額度 —— 那是 2AM 的額度，不是他的。總用量看「客戶總覽」上面那張卡。</div></div>
       <div class="fld"><label>送單自動通知</label><select id="ln_on">
         <option value="1"${cfg.on!==false?' selected':''}>開啟</option>
         <option value="0"${cfg.on===false?' selected':''}>關閉（只能手動傳）</option></select></div>
     </div>
+    <div class="fld" id="ln_qbox"${cfg.shared!==false?' style="display:none"':''}><label>這家的每月免費額度</label>
+      <input id="ln_q" type="number" value="${Number(cfg.quota)||200}"></div>
 
     <h3>各廠商的 LINE 群組　<span class="note">已設定 ${setN} / ${sups.length} 家</span></h3>
     ${sups.length?`<div class="scroll"><table>
@@ -534,7 +658,9 @@ window.saveLine=async function(){
   try{
     await DB.set('tenants/'+CUR+'/meta/line', {
       url:g('ln_url').trim(), secret:g('ln_sec').trim(),
-      quota:Math.max(1,parseInt(g('ln_q'))||200), on:g('ln_on')!=='0' });
+      /* 共用時額度就是 2AM 方案的額度 —— 不然客戶端會在 200 則就被自己擋下來 */
+      quota:g('ln_shared')!=='0'?linePlan().quota:Math.max(1,parseInt(g('ln_q'))||200),
+      on:g('ln_on')!=='0', shared:g('ln_shared')!=='0' });
     await DB.set('tenants/'+CUR+'/meta/lineGroups', Object.keys(groups).length?groups:null);
     await loadAll(); renderDetail();
     toast('已儲存，客戶端會自動同步 ✓');
@@ -550,7 +676,7 @@ window.migLine=async function(){
     const cfg=T.lineCfg||{};
     if(cfg.url) await DB.set('tenants/'+CUR+'/meta/line', {
       url:cfg.url||'', secret:cfg.secret||'',
-      quota:Number(cfg.quota)||200, on:cfg.on!==false });
+      quota:linePlan().quota, on:cfg.on!==false, shared:true });
     const groups=Object.assign({},T.lineGroups||{});
     let n=0;
     sups.forEach(s=>{ const k=supKey(s.name);

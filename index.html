@@ -592,7 +592,7 @@ function renderGate(){
       <div class="muted" style="text-align:center;margin-top:16px;font-size:12px;line-height:1.8;border-top:1px solid var(--line);padding-top:14px">
         第一次使用？帳號由專人開通，<b>請提供你的信箱給我們</b>。<br>
         <a href="${SUPPORT_LINE}" target="_blank" rel="noopener" style="display:inline-block;margin-top:9px;background:#06C755;color:#fff;font-weight:800;font-size:12.5px;padding:8px 18px;border-radius:99px;text-decoration:none">加入 ${SUPPORT_NAME}</a>
-        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-04f</div></div>`;
+        <div style="margin-top:12px;font-size:10.5px;opacity:.65">版本 2026-09-04g</div></div>`;
     setTimeout(()=>{const e=document.getElementById(load('p_lastemail')?'gPw':'gEmail');e&&e.focus();},120);return;}
   if(gateStep==='forgot'){
     b.innerHTML=`<h2 style="text-align:center">設定密碼</h2>
@@ -2302,17 +2302,23 @@ function lineGroupCheck(){
           <div class="muted" style="font-size:11px;word-break:break-all">${ok?esc(id.slice(0,7)+'…'+id.slice(-4))+`　${r.size} 人`
             :`存的是「${esc(String(id).slice(0,40))}」共 ${String(id).length} 個字 — 應為 C 開頭再接 32 個英數字`}</div></div>
       </div>`;}).join('')}
-    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-04f</div></div>`;}
+    <div class="muted" style="font-size:11px;margin-top:8px">版本 2026-09-04g</div></div>`;}
 function openLineSetup(){
   const used=lineUsed(),q=lineQuota(),pct=Math.min(100,Math.round(used/q*100));
   openModal(`<h3>LINE 自動通知設定</h3>
     <div class="muted" style="font-size:12.5px;margin-bottom:14px;line-height:1.7">
       送出叫貨單時，系統會自動發一則訊息到該廠商的 LINE 群組。這頁只顯示目前的狀態。</div>
-    <div style="background:${pct>=90?'#F8EAE6':pct>=70?'var(--amber-soft)':'var(--green-soft)'};border-radius:14px;padding:14px 16px;margin-bottom:16px">
-      <div style="font-weight:800;font-size:15px;color:${pct>=90?'#B04A32':pct>=70?'#7C6015':'var(--green)'}">本月已用 ${used} / ${q} 則</div>
-      <div style="height:8px;background:#fff;border-radius:99px;margin-top:9px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=90?'#B04A32':pct>=70?'#7C6015':'#2F6B4F'}"></div></div>
-      <div class="muted" style="font-size:11.5px;margin-top:8px">LINE 免費方案每月 200 則，算法是「發送次數 × 群裡人數」。<b style="color:var(--ink)">用完不會自動扣款</b>，只是發不出去，可以改用手動傳。</div>
-    </div>
+    ${lineCfg.shared!==false
+      /* 共用 2AM 官方帳號：額度是 2AM 的，不是這家客戶的，顯示出來只會誤導 */
+      ?`<div style="background:var(--green-soft);border-radius:14px;padding:14px 16px;margin-bottom:16px">
+        <div style="font-weight:800;font-size:15px;color:var(--green)">本月已發送 ${used} 則</div>
+        <div class="muted" style="font-size:11.5px;margin-top:8px">一則 ＝ 一次發送 × 群裡人數（發到 3 人的群算 3 則）。<b style="color:var(--ink)">額度由 2AM 統一管理</b>，不用擔心費用。</div>
+      </div>`
+      :`<div style="background:${pct>=90?'#F8EAE6':pct>=70?'var(--amber-soft)':'var(--green-soft)'};border-radius:14px;padding:14px 16px;margin-bottom:16px">
+        <div style="font-weight:800;font-size:15px;color:${pct>=90?'#B04A32':pct>=70?'#7C6015':'var(--green)'}">本月已用 ${used} / ${q} 則</div>
+        <div style="height:8px;background:#fff;border-radius:99px;margin-top:9px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=90?'#B04A32':pct>=70?'#7C6015':'#2F6B4F'}"></div></div>
+        <div class="muted" style="font-size:11.5px;margin-top:8px">算法是「發送次數 × 群裡人數」。<b style="color:var(--ink)">用完不會自動扣款</b>，只是發不出去，可以改用手動傳。</div>
+      </div>`}
     <div style="border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
         <b style="font-size:13.5px">中繼連線</b>
