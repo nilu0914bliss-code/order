@@ -216,7 +216,7 @@ window.dispatchEvent(new Event('db-ready'));
 </script>
 
 <script>
-const VER='2026-09-04d';
+const VER='2026-09-04e';
 const EK = e => String(e||'').replace(/\./g,',').replace(/@/g,',');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (Math.round(Number(n||0)*100)/100).toLocaleString('zh-TW');
@@ -337,6 +337,21 @@ window.show=function(v,btn){
 };
 window.openTenant=function(id){ CUR=id; show('detail',document.querySelectorAll('.nav button')[1]); };
 
+/* ── 年費規則 ────────────────────────────────────────────────
+   第一間門市 11,400，之後每多一間 1,500。
+   停用（archived）的門市不計費 —— 停用的店在叫貨系統看不到、沒人能下單，收錢不合理。
+   但「試算」不會自動蓋掉「存起來的金額」：合約期內金額是鎖定的，
+   中途停用不退、中途新增另外補收，續約時才依當下的使用中門市數重算。
+   所以下面只做提醒 ＋ 一顆手動套用的按鈕，不自動改錢。 */
+const FEE_FIRST=11400, FEE_MORE=1500;
+function activeStoreIds(T){
+  const ms=((T.meta||{}).stores)||{};
+  return Object.keys(T.stores||{}).filter(sid=>(ms[sid]||{}).archived!==true);
+}
+function feeCalc(T){ return FEE_FIRST+Math.max(0,activeStoreIds(T).length-1)*FEE_MORE; }
+function feeSavedOf(T){ const f=((T.meta||{}).contract||{}).fee; return (f===''||f==null)?null:Number(f); }
+function feeMismatch(T){ const s=feeSavedOf(T); return s!==null && s!==feeCalc(T); }
+
 function contractState(m){
   const e=(m.contract||{}).end;
   if(!e) return {pill:'<span class="pill p-off">未設定</span>', days:null};
@@ -367,6 +382,9 @@ function renderList(){
     const idle=Object.values(T.stores).filter(s=>s.orders===0);
     if(idle.length) alerts.push(['a-amb','📉','<b>'+esc(nm)+'</b>　有 <b>'+idle.length+' 間門市從沒叫過貨</b>：'+idle.map(s=>esc(s.name)).join('、')+
       '<div class="note">收了錢卻沒在用，這種客戶最容易不續約</div>']);
+    if(feeMismatch(T)) alerts.push(['a-amb','🧾','<b>'+esc(nm)+'</b>　存的年費 <b>$'+fmt(feeSavedOf(T))+'</b>，照現在使用中的 '+
+      activeStoreIds(T).length+' 間門市應該是 <b>$'+fmt(feeCalc(T))+'</b>'+
+      '<div class="note">合約期內鎖定金額是正常的；要重算就進去按「套用試算金額」</div>']);
     const dn=doneCount(m);
     if(dn<STEPS.length) alerts.push(['a-blue','📋','<b>'+esc(nm)+'</b>　開通進度 <b>'+dn+'/'+STEPS.length+'</b>，還有 '+(STEPS.length-dn)+' 步沒完成']);
   });
@@ -376,7 +394,8 @@ function renderList(){
     <div class="sub">${ids.length} 家客戶　·　${totalStores} 間門市　·　資料即時來自 Firebase</div>
     <div class="grid" style="margin-top:16px">
       <div class="stat"><div class="l">客戶</div><div class="v">${ids.length} <small>家</small></div></div>
-      <div class="stat"><div class="l">門市（計費單位）</div><div class="v">${totalStores} <small>間</small></div></div>
+      <div class="stat"><div class="l">門市・使用中（計費單位）</div><div class="v">${ids.reduce((a,id)=>a+activeStoreIds(TENANTS[id]).length,0)} <small>間</small></div>${
+        totalStores!==ids.reduce((a,id)=>a+activeStoreIds(TENANTS[id]).length,0)?'<div class="note">建立過 '+totalStores+' 間，停用的不計費</div>':''}</div>
       <div class="stat"><div class="l">累計訂單</div><div class="v">${ids.reduce((a,id)=>a+TENANTS[id].totalOrders,0)} <small>張</small></div></div>
       <div class="stat"><div class="l">商品總數</div><div class="v">${ids.reduce((a,id)=>a+TENANTS[id].products,0)} <small>項</small></div></div>
     </div>
@@ -396,11 +415,12 @@ function renderList(){
       ${ids.map(id=>{ const T=TENANTS[id], m=T.meta||{}, cs=contractState(m);
         return `<tr class="row" onclick="openTenant('${esc(id)}')">
           <td><b>${esc(m.company||id)}</b><div class="note">${esc(id)}${m.brand?'　·　'+esc(m.brand):''}</div></td>
-          <td class="r">${Object.keys(T.stores).length}</td>
+          <td class="r">${Object.keys(T.stores).length}${(function(){const on=activeStoreIds(T).length,all=Object.keys(T.stores).length;
+            return on<all?'<div class="note">'+on+' 間使用中</div>':'';})()}</td>
           <td class="r">${T.totalOrders}</td>
           <td class="r">${T.products}</td>
           <td>${(m.contract||{}).end?esc(m.contract.end):'<span class="note">未設定</span>'}</td>
-          <td class="r">${(m.contract||{}).fee?'$'+fmt(m.contract.fee):'—'}</td>
+          <td class="r">${(m.contract||{}).fee?'$'+fmt(m.contract.fee):'—'}${feeMismatch(T)?'<div class="note" style="color:var(--warn)">試算 $'+fmt(feeCalc(T))+'</div>':''}</td>
           <td>${payState(m)}</td>
           <td><span class="pill ${doneCount(m)===STEPS.length?'p-ok':'p-warn'}">${doneCount(m)}/${STEPS.length}</span></td>
           <td>${(m.suspended?'<span class="pill p-bad">已停用</span>':cs.pill)}</td>
@@ -431,6 +451,8 @@ function renderDetail(){
   const T=TENANTS[CUR], m=T.meta||{}, cs=contractState(m);
   const sids=Object.keys(T.stores);
   const c=m.contract||{}, p=m.payment||{}, inv=m.invoice||{};
+  const sidsOn=activeStoreIds(T), nOff=sids.length-sidsOn.length;
+  const FEEC=feeCalc(T), feeSaved=feeSavedOf(T), feeGap=feeMismatch(T);
   const done=m.onboarding||{};
   const idle=Object.values(T.stores).filter(s=>s.orders===0);
 
@@ -537,7 +559,8 @@ function renderDetail(){
           密碼是當場產生的亂碼，不顯示也不儲存 —— 妳和我都不會知道，對方自己在信裡設。</div></div>
       <button class="btn o" id="addStoreBtn" onclick="addStore()">建立門市</button>
       <div class="alert a-amb" style="margin-top:14px;margin-bottom:0"><span>💰</span><div>
-        新增一間門市，本期年費會多 <b>$1,500</b>（試算用，實際金額在下面「合約與收款」可以改）。</div></div>
+        新增一間門市，試算年費會多 <b>$1,500</b>；<b>停用的門市不計費</b>。<br>
+        <span class="note">合約期內的實際金額不會自動變，要改請到下面「合約與收款」按「套用試算金額」。</span></div></div>
     </div>
   </div>
 
@@ -563,12 +586,18 @@ function renderDetail(){
       <div class="fld"><label>合約迄日</label><input id="f_end" type="date" value="${esc(c.end||'')}"></div>
     </div>
     <div class="calc">
-      <div style="font-size:12px;letter-spacing:2px;opacity:.7;margin-bottom:8px">本期年費　依門市數自動試算</div>
-      <div class="line"><span>年費・第一間門市</span><span>$11,400</span></div>
-      <div class="line"><span>年費・每增加一間 × ${Math.max(0,sids.length-1)} 間</span><span>$${fmt(Math.max(0,sids.length-1)*1500)}</span></div>
-      <div class="tot"><span>試算金額</span><span>$${fmt(11400+Math.max(0,sids.length-1)*1500)}</span></div>
+      <div style="font-size:12px;letter-spacing:2px;opacity:.7;margin-bottom:8px">本期年費　依<b>使用中</b>門市數試算</div>
+      <div class="line"><span>年費・第一間門市</span><span>$${fmt(FEE_FIRST)}</span></div>
+      <div class="line"><span>年費・每增加一間 $${fmt(FEE_MORE)} × ${Math.max(0,sidsOn.length-1)} 間</span><span>$${fmt(Math.max(0,sidsOn.length-1)*FEE_MORE)}</span></div>
+      ${nOff?`<div class="line"><span>已停用 ${nOff} 間（不計費）</span><span>$0</span></div>`:''}
+      <div class="tot"><span>試算金額　<span style="font-weight:400;opacity:.65">${fmt(FEE_FIRST)}${sidsOn.length>1?' ＋ '+fmt(FEE_MORE)+'×'+(sidsOn.length-1):''}</span></span><span>$${fmt(FEEC)}</span></div>
     </div>
-    <div class="fld"><label>本期年費（實際；留空就用上面試算的）</label><input id="f_fee" value="${esc(c.fee||'')}" placeholder="${11400+Math.max(0,sids.length-1)*1500}"></div>
+    ${feeGap?`<div class="alert a-amb" style="margin-top:12px"><span>⚠️</span><div>
+      存起來的金額 <b>$${fmt(feeSaved)}</b> 跟試算 <b>$${fmt(FEEC)}</b> 不一樣（差 $${fmt(Math.abs(FEEC-feeSaved))}）。<br>
+      <span class="note">合約期內的金額本來就是鎖定的，中途加店／停用不會自動變 —— 如果這是刻意的，不用理它。要照現在的門市數重算就按下面。</span><br>
+      <button class="btn line mini" style="margin-top:8px" id="applyFeeBtn" onclick="applyFee()">套用試算金額 $${fmt(FEEC)}</button>
+    </div></div>`:''}
+    <div class="fld"><label>本期年費（實際；留空就用上面試算的）</label><input id="f_fee" value="${esc(c.fee||'')}" placeholder="${FEEC}"></div>
     <h3>本期收款</h3>
     <div class="three">
       <div class="fld"><label>狀態</label><select id="f_pstatus">
@@ -629,13 +658,21 @@ window.toggleStep=async function(k){
   }catch(e){ toast('存不進去：'+(e.message||e)); }
 };
 
+/* 把試算金額填進欄位並直接存起來（其他欄位維持畫面上現在的值） */
+window.applyFee=async function(){
+  const el=document.getElementById('f_fee'); if(!el) return;
+  el.value=String(feeCalc(TENANTS[CUR]));
+  const b=document.getElementById('applyFeeBtn'); if(b){b.disabled=true;b.textContent='套用中…';}
+  await saveMeta();
+  renderDetail();
+};
+
 window.saveMeta=async function(){
   const g=id=>(document.getElementById(id)||{}).value||'';
-  const sids=Object.keys(TENANTS[CUR].stores);
   const payload={
     company:g('f_company'), brand:g('f_brand'), contact:g('f_contact'), phone:g('f_phone'),
     contract:{ start:g('f_start'), end:g('f_end'),
-               fee: g('f_fee')!=='' ? Number(g('f_fee')) : (11400+Math.max(0,sids.length-1)*1500) },
+               fee: g('f_fee')!=='' ? Number(g('f_fee')) : feeCalc(TENANTS[CUR]) },
     payment:{ status:g('f_pstatus'), date:g('f_pdate'),
               amount: g('f_pamt')!=='' ? Number(g('f_pamt')) : null, note:g('f_pnote') },
     invoice:{ type:g('f_ivtype'), title:g('f_ivtitle'), taxid:g('f_ivtax'), email:g('f_ivmail') },
@@ -936,7 +973,7 @@ window.createTenant=async function(){
     await DB.set('tenants/'+id+'/meta', {
       company:g('n_company')||id, brand:g('n_brand')||g('n_company')||id,
       contact:g('n_contact'), phone:g('n_phone'),
-      contract:{ start:g('n_start'), end:g('n_end'), fee:11400 },
+      contract:{ start:g('n_start'), end:g('n_end'), fee:FEE_FIRST },
       payment:{ status:'none' },
       invoice:{ type:'收據（我方開立）', title:g('n_company')||'', taxid:g('n_taxid'), email:'' },
       onboarding:{ company:today() },
